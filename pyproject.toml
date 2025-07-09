@@ -35,7 +35,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mcp-automate = "mcp_server_automation.__main__:main"
+mcp-server-automation = "mcp_server_automation.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/aws-samples/sample-mcp-server-automation"
