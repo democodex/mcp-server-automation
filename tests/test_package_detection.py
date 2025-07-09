@@ -90,7 +90,7 @@ poetry-server = "my_server:main"
 
             with patch(
                 "mcp_server_automation.build.BuildCommand._extract_start_command_from_readme",
-                return_value=None,
+                return_value=(None, False, False),  # Returns tuple: (command, has_docker_commands, has_any_commands)
             ):
                 result = self.build_cmd._detect_package_info(temp_dir)
 
@@ -105,10 +105,16 @@ poetry-server = "my_server:main"
             with open(requirements_path, "w") as f:
                 f.write("requests>=2.25.0\nclick>=8.0.0\n")
 
-            result = self.build_cmd._detect_package_info(temp_dir)
+            # Need to provide a command since requirements.txt alone doesn't provide start command
+            with patch(
+                "mcp_server_automation.build.BuildCommand._extract_start_command_from_readme",
+                return_value=(["python", "-m", "my_server"], False, True),
+            ):
+                result = self.build_cmd._detect_package_info(temp_dir)
 
             self.assertEqual(result["manager"], "pip")
             self.assertEqual(result["requirements_file"], "requirements.txt")
+            self.assertEqual(result["start_command"], ["python", "-m", "my_server"])
 
     def test_detect_package_info_setup_py(self):
         """Test detection of setup.py."""
@@ -134,7 +140,7 @@ setup(
 
             with patch(
                 "mcp_server_automation.build.BuildCommand._extract_start_command_from_readme",
-                return_value=None,
+                return_value=(None, False, False),  # Returns tuple: (command, has_docker_commands, has_any_commands)
             ):
                 with patch(
                     "mcp_server_automation.build.BuildCommand._extract_start_command_from_setup_py",
@@ -146,65 +152,8 @@ setup(
             self.assertEqual(result["project_file"], "setup.py")
             self.assertEqual(result["start_command"], ["setup-server"])
 
-    def test_detect_fallback_start_command_server_py(self):
-        """Test fallback detection finds server.py."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            server_path = os.path.join(temp_dir, "server.py")
-            with open(server_path, "w") as f:
-                f.write('# MCP server\nprint("Hello")')
-
-            result = self.build_cmd._detect_fallback_start_command(temp_dir)
-
-            self.assertEqual(result, ["python", "server.py"])
-
-    def test_detect_fallback_start_command_main_py(self):
-        """Test fallback detection finds main.py."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            main_path = os.path.join(temp_dir, "main.py")
-            with open(main_path, "w") as f:
-                f.write("# Main entry point")
-
-            result = self.build_cmd._detect_fallback_start_command(temp_dir)
-
-            self.assertEqual(result, ["python", "main.py"])
-
-    def test_detect_fallback_start_command_main_module(self):
-        """Test fallback detection finds __main__.py."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.makedirs(os.path.join(temp_dir, "my_package"))
-            main_path = os.path.join(temp_dir, "__main__.py")
-            with open(main_path, "w") as f:
-                f.write("# Main module")
-
-            result = self.build_cmd._detect_fallback_start_command(temp_dir)
-
-            expected = ["python", "-m", os.path.basename(temp_dir)]
-            self.assertEqual(result, expected)
-
-    def test_detect_fallback_start_command_mcp_pattern(self):
-        """Test fallback detection finds files with 'mcp' in name."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mcp_path = os.path.join(temp_dir, "mcp_server.py")
-            with open(mcp_path, "w") as f:
-                f.write("# MCP server implementation")
-
-            result = self.build_cmd._detect_fallback_start_command(temp_dir)
-
-            self.assertEqual(result, ["python", "mcp_server.py"])
-
-    def test_detect_fallback_start_command_no_files(self):
-        """Test fallback detection when no recognized files exist."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create some unrelated files
-            with open(os.path.join(temp_dir, "config.json"), "w") as f:
-                f.write("{}")
-            with open(os.path.join(temp_dir, "readme.txt"), "w") as f:
-                f.write("Documentation")
-
-            result = self.build_cmd._detect_fallback_start_command(temp_dir)
-
-            # Should default to server.py
-            self.assertEqual(result, ["python", "server.py"])
+    # NOTE: _detect_fallback_start_command method doesn't exist in current BuildCommand
+    # These tests have been removed as they test non-existent functionality
 
     def test_extract_start_command_from_pyproject_no_scripts(self):
         """Test pyproject.toml parsing when no console scripts exist."""
@@ -250,6 +199,169 @@ setup(
 
             result = self.build_cmd._extract_start_command_from_setup_py(temp_dir)
             self.assertIsNone(result)
+
+    def test_aws_documentation_mcp_server_detection(self):
+        """Test package detection for AWS Documentation MCP Server structure."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create AWS documentation MCP server structure
+            pyproject_content = """
+[project]
+name = "mcp-server-aws-documentation"
+version = "0.1.0"
+description = "MCP server for AWS documentation"
+dependencies = [
+    "requests>=2.25.0",
+    "beautifulsoup4>=4.9.0",
+    "mcp>=1.0.0"
+]
+
+[project.scripts]
+mcp-server-aws-documentation = "aws_documentation_mcp_server:main"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=6.0",
+    "black",
+    "ruff"
+]
+"""
+            # Create README with MCP server configuration
+            readme_content = """
+# AWS Documentation MCP Server
+
+## Usage
+
+```json
+{
+  "mcpServers": {
+    "aws-documentation": {
+      "command": "uvx",
+      "args": ["mcp-server-aws-documentation"]
+    }
+  }
+}
+```
+
+## Development
+
+Install with uv:
+```bash
+uv run mcp-server-aws-documentation
+```
+"""
+            
+            pyproject_path = os.path.join(temp_dir, "pyproject.toml")
+            readme_path = os.path.join(temp_dir, "README.md")
+            
+            with open(pyproject_path, "w") as f:
+                f.write(pyproject_content)
+            with open(readme_path, "w") as f:
+                f.write(readme_content)
+
+            result = self.build_cmd._detect_package_info(temp_dir)
+
+            # Should detect uv as package manager
+            self.assertEqual(result["manager"], "uv")
+            self.assertEqual(result["project_file"], "pyproject.toml")
+            
+            # Should extract command from README (uvx mcp-server-aws-documentation)
+            expected_command = ["uvx", "mcp-server-aws-documentation"]
+            self.assertEqual(result["start_command"], expected_command)
+            
+            # Should generate proper entrypoint command
+            expected_entrypoint = [
+                "mcp-proxy", "--debug", "--port", "8000", "--shell",
+                "uvx", "--", "mcp-server-aws-documentation"
+            ]
+            self.assertEqual(result["entrypoint_command"], expected_entrypoint)
+
+    def test_python_uv_project_fallback_to_script(self):
+        """Test that uv projects fall back to pyproject.toml scripts when README doesn't have commands."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pyproject_content = """
+[project]
+name = "python-mcp-server"
+version = "0.1.0"
+dependencies = ["mcp>=1.0.0"]
+
+[project.scripts]
+python-mcp-server = "python_mcp_server.main:main"
+
+[tool.uv]
+dev-dependencies = ["pytest"]
+"""
+            readme_content = """
+# Python MCP Server
+
+A simple MCP server implementation.
+
+## Installation
+
+```bash
+uv sync
+```
+"""
+            
+            pyproject_path = os.path.join(temp_dir, "pyproject.toml")
+            readme_path = os.path.join(temp_dir, "README.md")
+            
+            with open(pyproject_path, "w") as f:
+                f.write(pyproject_content)
+            with open(readme_path, "w") as f:
+                f.write(readme_content)
+
+            result = self.build_cmd._detect_package_info(temp_dir)
+
+            # Should detect uv as package manager
+            self.assertEqual(result["manager"], "uv")
+            self.assertEqual(result["project_file"], "pyproject.toml")
+            
+            # Should fall back to pyproject.toml script since no command in README
+            expected_command = ["python-mcp-server"]
+            self.assertEqual(result["start_command"], expected_command)
+
+    def test_python_pip_with_requirements_txt(self):
+        """Test Python project with requirements.txt (pip-based)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            requirements_content = """
+mcp>=1.0.0
+requests>=2.25.0
+click>=8.0.0
+"""
+            readme_content = """
+# Simple MCP Server
+
+## Configuration
+
+```json
+{
+  "mcpServers": {
+    "simple": {
+      "command": "python",
+      "args": ["-m", "simple_mcp_server"]
+    }
+  }
+}
+```
+"""
+            
+            requirements_path = os.path.join(temp_dir, "requirements.txt")
+            readme_path = os.path.join(temp_dir, "README.md")
+            
+            with open(requirements_path, "w") as f:
+                f.write(requirements_content)
+            with open(readme_path, "w") as f:
+                f.write(readme_content)
+
+            result = self.build_cmd._detect_package_info(temp_dir)
+
+            # Should detect pip as package manager
+            self.assertEqual(result["manager"], "pip")
+            self.assertEqual(result["requirements_file"], "requirements.txt")
+            
+            # Should extract command from README
+            expected_command = ["python", "-m", "simple_mcp_server"]
+            self.assertEqual(result["start_command"], expected_command)
 
 
 if __name__ == "__main__":

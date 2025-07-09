@@ -13,11 +13,9 @@ RUN apt-get update && apt-get install -y \
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs
 
-{% if package_info.manager == 'uv' %}
 # Install uv (for uvx command)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
-{% endif %}
 
 # Install mcp-proxy globally (needed for HTTP transport)
 RUN npm install -g mcp-proxy

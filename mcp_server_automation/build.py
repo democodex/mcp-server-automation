@@ -536,9 +536,4 @@ class BuildCommand:
             repository=repository, tag=tag, stream=True, decode=True
         )
 
-        # Print push logs
-        for log in push_logs:
-            if "status" in log:
-                print(f"{log['status']}: {log.get('progress', '')}")
-
         print(f"Successfully pushed image: {image_tag}")

@@ -39,11 +39,12 @@ class BuildConfig:
         return None
     
     @property 
-    def image_name(self) -> Optional[str]:
-        """Get the image name from repository path."""
+    def image_name(self) -> str:
+        """Get the image name from repository path or auto-generate it."""
         if self.image and self.image.repository:
             return self.image.repository.split("/")[-1]
-        return None
+        # Auto-generate image name when not provided
+        return ConfigLoader._generate_image_name(self.github_url, self.subfolder)
     
     @property
     def ecr_repository(self) -> Optional[str]:

@@ -1,5 +1,6 @@
 # Example: Build only (no deployment)
 # Use this when you just want to build and push Docker images to ECR
+# Tests Python package manager detection with AWS Documentation MCP Server
 
 build:
   github_url: "https://github.com/awslabs/mcp"
