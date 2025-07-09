@@ -50,6 +50,9 @@ class BuildCommand:
                 dockerfile_path,
                 command_override,
                 environment_variables,
+                github_url,
+                subfolder,
+                branch,
             )
             dockerfile_full_path = os.path.join(temp_dir, "Dockerfile")
             with open(dockerfile_full_path, "w", encoding='utf-8') as f:
@@ -144,20 +147,25 @@ class BuildCommand:
         custom_dockerfile_path: Optional[str],
         command_override: Optional[List[str]] = None,
         environment_variables: Optional[dict] = None,
+        github_url: Optional[str] = None,
+        subfolder: Optional[str] = None,
+        branch: Optional[str] = None,
     ) -> str:
         """Generate Dockerfile based on template."""
         if custom_dockerfile_path and os.path.exists(custom_dockerfile_path):
             with open(custom_dockerfile_path, "r", encoding='utf-8') as f:
                 return f.read()
 
-        # Detect package manager and dependencies
+        # Detect package manager and dependencies  
         package_info = self._detect_package_info(
-            mcp_server_path, command_override, environment_variables
+            mcp_server_path, command_override, environment_variables,
+            github_url, subfolder, branch
         )
 
-        # Load Dockerfile template
+        # Load appropriate Dockerfile template based on language
+        template_filename = f"Dockerfile-{package_info['language']}.j2"
         template_path = os.path.join(
-            os.path.dirname(__file__), "templates", "Dockerfile.j2"
+            os.path.dirname(__file__), "templates", template_filename
         )
         with open(template_path, "r", encoding='utf-8') as f:
             template_content = f.read()
@@ -171,14 +179,24 @@ class BuildCommand:
         mcp_server_path: str,
         command_override: Optional[List[str]] = None,
         environment_variables: Optional[dict] = None,
+        github_url: Optional[str] = None,
+        subfolder: Optional[str] = None,
+        branch: Optional[str] = None,
     ) -> dict:
         """Detect package manager, dependency files, and start command."""
+        # First detect the language/runtime
+        language = self._detect_language(mcp_server_path)
+        
         package_info = {
-            "manager": "pip",
+            "language": language,
+            "manager": "pip" if language == "python" else "npm",
             "requirements_file": None,
             "project_file": None,
             "start_command": None,
             "environment_variables": environment_variables or {},
+            "github_url": github_url,
+            "subfolder": subfolder,
+            "branch": branch or "main",
         }
 
         # Priority 1: Use command override if provided
@@ -219,31 +237,39 @@ class BuildCommand:
                         "    - \"server.py\""
                     )
 
-        # Check for different dependency files and extract start command
-        if os.path.exists(os.path.join(mcp_server_path, "pyproject.toml")):
-            with open(os.path.join(mcp_server_path, "pyproject.toml"), "r", encoding='utf-8') as f:
-                content = f.read()
-                if "[tool.uv]" in content:
-                    package_info["manager"] = "uv"
-                elif "[tool.poetry]" in content:
-                    package_info["manager"] = "poetry"
-                package_info["project_file"] = "pyproject.toml"
+        # Check for different dependency files and extract start command based on language
+        if language == "nodejs":
+            # Handle Node.js dependencies
+            if os.path.exists(os.path.join(mcp_server_path, "package.json")):
+                package_info["project_file"] = "package.json"
+                package_info["manager"] = "npm"
+                # Note: For Node.js, we rely on README commands only, not package.json parsing
+        else:
+            # Handle Python dependencies
+            if os.path.exists(os.path.join(mcp_server_path, "pyproject.toml")):
+                with open(os.path.join(mcp_server_path, "pyproject.toml"), "r", encoding='utf-8') as f:
+                    content = f.read()
+                    if "[tool.uv]" in content:
+                        package_info["manager"] = "uv"
+                    elif "[tool.poetry]" in content:
+                        package_info["manager"] = "poetry"
+                    package_info["project_file"] = "pyproject.toml"
 
-                # Try to extract console_scripts or main module (only if not found in README)
+                    # Try to extract console_scripts or main module (only if not found in README)
+                    if not package_info["start_command"]:
+                        package_info["start_command"] = (
+                            self._extract_start_command_from_pyproject(content)
+                        )
+
+            elif os.path.exists(os.path.join(mcp_server_path, "requirements.txt")):
+                package_info["requirements_file"] = "requirements.txt"
+
+            elif os.path.exists(os.path.join(mcp_server_path, "setup.py")):
+                package_info["project_file"] = "setup.py"
                 if not package_info["start_command"]:
                     package_info["start_command"] = (
-                        self._extract_start_command_from_pyproject(content)
+                        self._extract_start_command_from_setup_py(mcp_server_path)
                     )
-
-        elif os.path.exists(os.path.join(mcp_server_path, "requirements.txt")):
-            package_info["requirements_file"] = "requirements.txt"
-
-        elif os.path.exists(os.path.join(mcp_server_path, "setup.py")):
-            package_info["project_file"] = "setup.py"
-            if not package_info["start_command"]:
-                package_info["start_command"] = (
-                    self._extract_start_command_from_setup_py(mcp_server_path)
-                )
 
         # Final validation: ensure we have a command if no command_override was provided
         if not package_info["start_command"] and not command_override:
@@ -307,14 +333,23 @@ class BuildCommand:
                     with open(readme_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
-                    # Find JSON blocks with mcpServers
-                    pattern = r'```(?:json)?\s*(\{[\s\S]*?"mcpServers"[\s\S]*?\})\s*```'
-                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    # Find individual JSON blocks first, then check their content
+                    json_blocks = re.findall(r'```json\s*(.*?)\s*```', content, re.DOTALL | re.IGNORECASE)
 
-                    for json_str in matches:
+                    for json_str in json_blocks:
+                        # Check if this block contains MCP server configuration
+                        if 'mcpServers' not in json_str and ('mcp' not in json_str or 'servers' not in json_str):
+                            continue
+                            
                         try:
                             config = json.loads(json_str)
-                            servers = config.get("mcpServers", {})
+                            
+                            # Handle both formats: "mcpServers" and "mcp.servers"
+                            servers = {}
+                            if "mcpServers" in config:
+                                servers = config["mcpServers"]
+                            elif "mcp" in config and "servers" in config["mcp"]:
+                                servers = config["mcp"]["servers"]
 
                             # Check all server commands to detect what's available
                             for server_config in servers.values():
@@ -343,6 +378,27 @@ class BuildCommand:
                     continue
 
         return None, has_docker_commands, has_any_commands
+
+    def _detect_language(self, mcp_server_path: str) -> str:
+        """Detect the primary language/runtime of the MCP server."""
+        # Check for Node.js indicators
+        if os.path.exists(os.path.join(mcp_server_path, "package.json")):
+            return "nodejs"
+        
+        # Check for TypeScript indicators
+        if (os.path.exists(os.path.join(mcp_server_path, "tsconfig.json")) or
+            any(f.endswith('.ts') for f in os.listdir(mcp_server_path) if os.path.isfile(os.path.join(mcp_server_path, f)))):
+            return "nodejs"
+        
+        # Check for Python indicators
+        if (os.path.exists(os.path.join(mcp_server_path, "requirements.txt")) or
+            os.path.exists(os.path.join(mcp_server_path, "pyproject.toml")) or
+            os.path.exists(os.path.join(mcp_server_path, "setup.py")) or
+            any(f.endswith('.py') for f in os.listdir(mcp_server_path) if os.path.isfile(os.path.join(mcp_server_path, f)))):
+            return "python"
+        
+        # Default to Python if unclear
+        return "python"
 
     def _extract_start_command_from_pyproject(
         self, content: str
@@ -403,21 +459,19 @@ class BuildCommand:
         """Build Docker image."""
         print(f"Building Docker image: {image_tag}")
 
-        # Copy MCP server files to build context
+        # Copy MCP server files to build context only if needed
+        # (for cases where we can't install directly from repository)
         mcp_server_dest = os.path.join(build_context, "mcp-server")
         if os.path.exists(mcp_server_dest):
             shutil.rmtree(mcp_server_dest)
+        
+        # Always copy for now - the Dockerfile will decide whether to use it
         shutil.copytree(mcp_server_path, mcp_server_dest)
 
         # Build image
-        _, build_logs = self.docker_client.images.build(
+        self.docker_client.images.build(
             path=build_context, tag=image_tag, rm=True
         )
-
-        # Print build logs
-        for log in build_logs:
-            if isinstance(log, dict) and "stream" in log:
-                print(str(log["stream"]).strip())
 
         print(f"Successfully built image: {image_tag}")
 

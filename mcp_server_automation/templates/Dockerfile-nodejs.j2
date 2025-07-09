@@ -1,0 +1,45 @@
+# Node.js MCP Server with mcp-proxy CLI
+FROM node:24-bullseye
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    wget \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install mcp-proxy globally (needed for HTTP transport)
+RUN npm install -g mcp-proxy
+
+# Set working directory
+WORKDIR /app
+
+{% if package_info.project_file == 'package.json' %}
+# Install MCP server directly from GitHub repository
+{% if package_info.subfolder %}
+RUN npm install -g "{{ package_info.github_url }}#{{ package_info.branch }}:{{ package_info.subfolder }}"
+{% else %}
+RUN npm install -g "{{ package_info.github_url }}#{{ package_info.branch }}"
+{% endif %}
+{% else %}
+# Copy MCP server files (fallback when no package.json)
+COPY mcp-server/ ./mcp-server/
+{% endif %}
+
+{% if package_info.environment_variables %}
+# Set custom environment variables
+{% for key, value in package_info.environment_variables.items() %}
+ENV {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}
+
+# Health check - check if port 8000 is listening
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD nc -z localhost 8000 || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Use mcp-proxy CLI to start the server with the detected MCP server command
+ENTRYPOINT {{ package_info.entrypoint_command | tojson }}
