@@ -1,16 +1,24 @@
 # MCP Automation Configuration Example
 # This file shows the new unified build + deploy configuration
 
-# EXAMPLE 1: Build and deploy with auto-generated image URI (most common)
 build:
-  # Required: GitHub repository URL for MCP server
-  github_url: "https://github.com/awslabs/mcp"
-  
-  # Optional: Subfolder path if MCP server is not in root
-  subfolder: "src/aws-documentation-mcp-server"
-  
-  # Optional: Git branch to build from (default: main)
-  # branch: "develop"
+  # Method 1: Use command and package manager
+  entrypoint:
+    command: "npx"
+    args: 
+      - "-y"
+      - "@modelcontextprotocol/server-everything"
+
+  # Method 2: Fetch MCP server from GitHub    
+  # github: 
+    # Required: GitHub repository URL for MCP server
+    # github_url: "https://github.com/awslabs/mcp"
+    
+    # Optional: Subfolder path if MCP server is not in root
+    # subfolder: "src/aws-documentation-mcp-server"
+    
+    # Optional: Git branch to build from (default: main)
+    # branch: "develop"
   
   # Required for deployment: Must be true to enable ECR push
   push_to_ecr: true
@@ -54,19 +62,13 @@ deploy:
   vpc_id: "vpc-12345678"
   
   # Required: Subnet configuration
-  # Option 1: Separate ALB and ECS subnets (recommended for security)
   alb_subnet_ids:    # Public subnets for ALB (minimum 2 in different AZs)
     - "subnet-public-1"
     - "subnet-public-2"
   ecs_subnet_ids:    # Private subnets for ECS tasks (minimum 1)
     - "subnet-private-1"
     - "subnet-private-2"
-  
-  # Option 2: Legacy format (same subnets for both ALB and ECS)
-  # subnet_ids:
-  #   - "subnet-12345678"
-  #   - "subnet-87654321"
-  
+
   # Optional: Container port (default: 8000)
   port: 8000
   

@@ -4,10 +4,12 @@ A powerful CLI tool that automates the process of transforming Model Context Pro
 
 ## 🚀 Features
 
+- **⚡ Direct Command Mode**: Build MCP servers instantly without config files using `--` separator syntax  
 - **🔄 Automatic Build**: Fetch MCP servers from GitHub, build Docker images, and push to ECR
 - **☁️ One-Click Deploy**: Generate CloudFormation templates and deploy complete ECS infrastructure
 - **🔍 Smart Detection**: Automatically detect MCP server commands from README files
 - **🐳 Multi-Language**: Support for Python and Node.js/TypeScript MCP servers with automatic language detection
+- **🏷️ Smart Naming**: Automatic package name extraction for Docker image naming
 - **🔧 Debug Support**: Built-in debug logging for troubleshooting
 - **📝 Config Generation**: Generate MCP client configurations for Claude Desktop, Cline, etc.
 
@@ -33,16 +35,28 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 ## 📖 Quick Start
 
-### Using uvx (Recommended)
+### Direct Command Mode (No Config File)
 
-The easiest way to use this tool is with `uvx`, which handles dependencies automatically:
+The fastest way to build MCP server images is using direct command mode:
+
+```bash
+# Build MCP server image directly (no config file needed)
+uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
+
+# Build and push to ECR
+uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation --push-to-ecr -- uvx mcp-server-automation
+```
+
+### Config Files
+
+Use yaml-based config file with configuration files for complex deployments:
 
 ```bash
 # Install from a Git repository
 uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --config your-config.yaml
 ```
 
-### Local Development Setup
+### Local Development Setup (MacOS or Linux)
 
 ```bash
 # Clone and setup
@@ -51,26 +65,65 @@ cd mcp-convert-automate
 uv sync
 source .venv/bin/activate
 
-# Run
+# Run with config file
 uv run mcp-server-automation --config your-config.yaml
+
+# Run with direct command mode
+uv run mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
 ```
 
 ## ⚙️ Configuration
 
-The tool uses a unified YAML configuration file with `build` and `deploy` sections.
+The tool supports two modes:
 
-### Unified Configuration
+1. **Direct Command Mode**: No configuration file needed - specify command directly with `--` separator
+2. **Config File Mode**: Use YAML configuration files for complex builds and deployments
+
+### Direct Command Mode
+
+Use the `--` separator to specify commands directly:
+
+```bash
+# Basic usage
+mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
+
+# With ECR push (requires ECR repository to be configured separately)
+mcp-server-automation --push-to-ecr -- python -m my_server
+
+# Package name extraction for image naming
+# @modelcontextprotocol/server-everything → mcp-server-everything
+# mcp-server-automation → mcp-mcp-server-automation
+```
+
+**Features:**
+- No config file required
+- Automatic package name extraction for Docker image naming
+- Build-only mode (deployment requires config files)
+- Simple `--push-to-ecr` flag support
+
+### Config File Mode
+
+For complex scenarios, use YAML configuration files with `build` and `deploy` sections:
 
 ```yaml
 build:
-  # Required: GitHub repository URL
-  github_url: "https://github.com/awslabs/mcp"
+  # Method 1: Use command and package manager
+  entrypoint:
+    command: "npx"
+    args: 
+      - "-y"
+      - "@modelcontextprotocol/server-everything"
 
-  # Optional: Subfolder if MCP server is not in root
-  subfolder: "src/aws-documentation-mcp-server"
-
-  # Optional: Git branch to build from (default: main)
-  branch: "main"
+  # Method 2: Fetch MCP server from GitHub    
+  # github: 
+    # Required: GitHub repository URL for MCP server
+    # github_url: "https://github.com/awslabs/mcp"
+    
+    # Optional: Subfolder path if MCP server is not in root
+    # subfolder: "src/aws-documentation-mcp-server"
+    
+    # Optional: Git branch to build from (default: main)
+    # branch: "develop"
 
   # Required for deployment: Must be true to enable ECR push and deployment
   push_to_ecr: true
@@ -180,7 +233,19 @@ export ECS_CLUSTER_NAME=my-production-cluster
 
 ### Build Process Flow
 
-1. **Repository Analysis**: Downloads GitHub repos and detects MCP server configuration from README files
+The tool supports two build modes:
+
+#### Direct Command Mode
+
+1. **Command Parsing**: Parses command and arguments from CLI using `--` separator (e.g., `-- npx -y @modelcontextprotocol/server-everything`)
+2. **Package Name Extraction**: Automatically extracts package names for Docker image naming (e.g., `@modelcontextprotocol/server-everything` → `mcp-server-everything`)
+3. **Language Detection**: Detects runtime (Node.js/Python) from command
+4. **Dockerfile Generation**: Creates optimized containers with pre-installed packages
+5. **Image Building**: Builds container ready to execute the specified command
+
+#### Config File Mode (GitHub/Entrypoint)
+
+1. **Repository Analysis**: Downloads GitHub repos and detects MCP server configuration from README files (GitHub mode)
 2. **Language Detection**: Automatically detects Python or Node.js/TypeScript based on project files (package.json, pyproject.toml, etc.)
 3. **Command Detection**: Parses JSON blocks in README files to extract MCP server start commands from both Claude Desktop (`mcpServers`) and VS Code (`mcp.servers`) configuration formats
 4. **Dockerfile Generation**: Uses language-specific Jinja2 templates (Dockerfile-python.j2, Dockerfile-nodejs.j2) to create optimized builds with mcp-proxy CLI integration
@@ -209,7 +274,7 @@ The tool supports both **Python** and **Node.js/TypeScript** MCP servers with au
 
 - Detected by: `package.json`, `tsconfig.json`, or `.ts/.js` files
 - Package manager: npm (with Node.js 24-bullseye base image)
-- Base image: `node:24-bullseye` 
+- Base image: `node:24-bullseye`
 - Command extraction from: README JSON configurations
 
 ### Command Detection and Override
@@ -232,7 +297,8 @@ The tool automatically detects MCP server startup commands from:
 
 ```yaml
 build:
-  github_url: "https://github.com/my-org/custom-mcp-server"
+  github: 
+    github_url: "https://github.com/my-org/custom-mcp-server"
   command_override:
     - "python"
     - "-m"
@@ -289,7 +355,6 @@ If your MCP server README only shows Docker commands:
 ```
 
 You'll get an error requiring `command_override` to specify the direct startup command.
-
 
 ## 🐛 Troubleshooting
 

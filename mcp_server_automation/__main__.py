@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Main entry point for MCP Server Automation CLI."""
 
-from .cli import cli
-
 
 def main():
+    """Main entry point for the CLI."""
+    from .cli import cli
     cli()
 
 

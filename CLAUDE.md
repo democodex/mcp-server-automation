@@ -23,8 +23,14 @@ pip install -e .
 
 #### Using uv run (Recommended)
 ```bash
-# Build MCP server using direct command (entrypoint mode)
+# Build MCP server using config file (entrypoint mode)
 uv run python -m mcp_server_automation --config config-examples/entrypoint-example.yaml
+
+# Build MCP server using direct command mode (no config file needed)
+uv run python -m mcp_server_automation -- npx -y @modelcontextprotocol/server-everything
+
+# Build and push to ECR using direct command mode
+uv run python -m mcp_server_automation --push-to-ecr -- uvx mcp-server-automation
 
 # Build MCP server from GitHub repository and push to ECR
 uv run python -m mcp_server_automation --config config-examples/github-example.yaml
@@ -38,8 +44,14 @@ uvx --from git+https://github.com/awslabs/mcp-server-automation mcp-server-autom
 
 #### Using Python directly
 ```bash
-# Build MCP server using entrypoint mode
+# Build MCP server using config file (entrypoint mode)
 python -m mcp_server_automation --config config-examples/entrypoint-example.yaml
+
+# Build MCP server using direct command mode (no config file needed)
+python -m mcp_server_automation -- npx -y @modelcontextprotocol/server-everything
+
+# Build and push to ECR using direct command mode
+python -m mcp_server_automation --push-to-ecr -- uvx mcp-server-automation
 
 # Build and push to ECR from GitHub repository
 python -m mcp_server_automation --config config-examples/github-example.yaml
@@ -53,8 +65,14 @@ python -m mcp_server_automation --config config-examples/full-deployment.yaml
 # Install in development mode
 pip install -e .
 
-# Use the CLI directly
+# Use the CLI directly with config file
 mcp-automate --config config-examples/entrypoint-example.yaml
+
+# Use the CLI directly with command mode
+mcp-automate -- npx -y @modelcontextprotocol/server-everything
+
+# Use the CLI with push to ECR
+mcp-automate --push-to-ecr -- uvx mcp-server-automation
 ```
 
 ### Testing with MCP Inspector
@@ -77,13 +95,20 @@ npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 
 ### Build Process Flow
 
-#### Entrypoint Mode
-1. **Command Processing**: Uses provided command and arguments directly
+#### Direct Command Mode (No Config File)
+1. **Command Parsing**: Parses command and arguments from CLI using `--` separator (e.g., `-- npx -y @modelcontextprotocol/server-everything`)
+2. **Package Name Extraction**: Automatically extracts package names for Docker image naming (e.g., `@modelcontextprotocol/server-everything` → `mcp-server-everything`)
+3. **Language Detection**: Detects runtime (Node.js/Python) from command
+4. **Dockerfile Generation**: Creates optimized containers with pre-installed packages
+5. **Image Building**: Builds container ready to execute the specified command
+
+#### Entrypoint Mode (Config File)
+1. **Command Processing**: Uses provided command and arguments from YAML configuration
 2. **Language Detection**: Detects runtime (Node.js/Python) from command
 3. **Dockerfile Generation**: Creates optimized containers with pre-installed packages
 4. **Image Building**: Builds container ready to execute the specified command
 
-#### GitHub Mode  
+#### GitHub Mode (Config File)  
 1. **Repository Analysis**: Downloads GitHub repos and detects MCP server configuration from README files
 2. **Command Detection**: Parses JSON blocks in README files to extract MCP server start commands, prioritizing NPX/uvx over Docker commands
 3. **Dockerfile Generation**: Uses Jinja2 templates to create multi-stage Docker builds with mcp-proxy CLI integration
@@ -100,6 +125,18 @@ npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 
 ### Configuration System
 
+The tool supports three build approaches:
+
+#### 1. Direct Command Mode (No Config File)
+- **CLI Usage**: `mcp-server-automation --push-to-ecr -- npx -y @modelcontextprotocol/server-everything`
+- **Features**: 
+  - No configuration file needed
+  - Uses `--` separator to specify command and arguments
+  - Automatic package name extraction for image naming
+  - Optional `--push-to-ecr` flag for ECR deployment
+  - Build-only mode (no deployment support)
+
+#### 2. Config File Modes
 Uses YAML files with separate `build` and `deploy` sections supporting two build modes:
 
 **Build Section:**

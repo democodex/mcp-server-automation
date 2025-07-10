@@ -12,22 +12,95 @@ from .deploy import DeployCommand
 from .config import ConfigLoader
 
 
-@click.command()
+@click.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.version_option()
 @click.option(
     "--config",
     "-c",
-    required=True,
     type=click.Path(exists=True),
     help="YAML configuration file path",
 )
-def cli(config):
-    """Build MCP server Docker image and optionally deploy to ECS."""
-    mcp_config = ConfigLoader.load_config(config)
-
-    if not mcp_config.build:
-        click.echo("Error: No 'build' section found in configuration file")
+@click.option(
+    "--push-to-ecr",
+    is_flag=True,
+    help="Push the built image to ECR",
+)
+@click.pass_context
+def cli(ctx, config, push_to_ecr):
+    """Build MCP server Docker image and optionally deploy to ECS.
+    
+    Usage:
+      With config file: mcp-server-automation --config config.yaml
+      With direct command: mcp-server-automation --push-to-ecr -- npx -y @modelcontextprotocol/server-everything
+    """
+    
+    # Get extra arguments (everything after --)
+    extra_args = ctx.args
+    
+    # Ensure CLI parameters and config file are mutually exclusive
+    if config and extra_args:
+        click.echo("Error: Cannot use both --config and direct command (after --). Choose one approach.")
         return
+    
+    if not config and not extra_args:
+        click.echo("Error: Either --config or direct command (after --) must be specified")
+        return
+    
+    if config:
+        # Config file mode
+        mcp_config = ConfigLoader.load_config(config)
+        if not mcp_config.build:
+            click.echo("Error: No 'build' section found in configuration file")
+            return
+    else:
+        # CLI-only entrypoint mode with -- separator
+        if not extra_args:
+            click.echo("Error: No command specified after --")
+            return
+            
+        command = extra_args[0]
+        args = extra_args[1:] if len(extra_args) > 1 else []
+        
+        from types import SimpleNamespace
+        mcp_config = SimpleNamespace()
+        mcp_config.build = SimpleNamespace()
+        mcp_config.deploy = None
+        
+        # Create entrypoint configuration from CLI args
+        mcp_config.build.entrypoint = SimpleNamespace()
+        mcp_config.build.entrypoint.command = command
+        mcp_config.build.entrypoint.args = args
+        
+        # Extract package name for image naming
+        package_name = None
+        if args:
+            # Look for package names (typically the last argument or after flags)
+            for arg in reversed(args):
+                if not arg.startswith('-') and ('/' in arg or '@' in arg or not arg.startswith('-')):
+                    # Extract package name from patterns like:
+                    # @modelcontextprotocol/server-everything -> server-everything
+                    # mcp-server-automation -> mcp-server-automation  
+                    if '/' in arg:
+                        package_name = arg.split('/')[-1]
+                    elif '@' in arg and not arg.startswith('@'):
+                        package_name = arg.split('@')[0]
+                    else:
+                        package_name = arg
+                    break
+        
+        # Set required defaults for CLI-only mode
+        mcp_config.build.push_to_ecr = push_to_ecr
+        if package_name:
+            # Clean package name for Docker image naming
+            clean_name = package_name.replace('@', '').replace('/', '-').lower()
+            mcp_config.build.image_name = f"mcp-{clean_name}"
+        else:
+            mcp_config.build.image_name = f"mcp-{command}"
+        mcp_config.build.ecr_repository = None
+        mcp_config.build.aws_region = None
+        mcp_config.build.dockerfile_path = None
+        mcp_config.build.command_override = None
+        mcp_config.build.environment_variables = None
 
     build_config = mcp_config.build
     deploy_config = mcp_config.deploy
@@ -77,7 +150,7 @@ def cli(config):
     build_cmd = BuildCommand()
     
     # Determine parameters based on build mode
-    if build_config.entrypoint:
+    if hasattr(build_config, 'entrypoint') and build_config.entrypoint:
         # Entrypoint mode
         build_cmd.execute(
             github_url=None,
@@ -94,7 +167,11 @@ def cli(config):
             entrypoint_args=build_config.entrypoint.args,
         )
     else:
-        # GitHub mode
+        # GitHub mode - validate that github config exists
+        if not hasattr(build_config, 'github') or not build_config.github:
+            click.echo("Error: Either entrypoint or github configuration must be specified")
+            return
+            
         build_cmd.execute(
             github_url=build_config.github.github_url,
             subfolder=build_config.github.subfolder,
