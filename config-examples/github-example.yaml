@@ -1,0 +1,14 @@
+# Method 2: GitHub Repository Mode
+# Build MCP servers from GitHub repositories
+
+build:
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+    # branch: "main"  # optional
+  
+  # Build and push to ECR
+  push_to_ecr: true
+
+deploy:
+  enabled: false

@@ -16,20 +16,38 @@ class ImageConfig:
 
 
 @dataclass
+class EntrypointConfig:
+    """Configuration for direct command entrypoint."""
+    
+    command: str
+    args: Optional[list[str]] = None
+
+
+@dataclass
+class GitHubConfig:
+    """Configuration for GitHub repository build."""
+    
+    github_url: str
+    subfolder: Optional[str] = None
+    branch: Optional[str] = None
+
+
+@dataclass
 class BuildConfig:
     """Configuration for build command."""
 
-    github_url: str
+    # Either use entrypoint OR github, not both
+    entrypoint: Optional[EntrypointConfig] = None
+    github: Optional[GitHubConfig] = None
+    
     image: Optional[ImageConfig] = None
-    subfolder: Optional[str] = None
-    branch: Optional[str] = None
     aws_region: str = "us-east-1"
     dockerfile_path: Optional[str] = None
     push_to_ecr: bool = False
     command_override: Optional[list[str]] = None
     environment_variables: Optional[Dict[str, str]] = None
     
-    # Computed properties for backward compatibility with existing build logic
+    # Computed properties
     @property
     def image_uri(self) -> Optional[str]:
         """Get the full image URI."""
@@ -43,8 +61,14 @@ class BuildConfig:
         """Get the image name from repository path or auto-generate it."""
         if self.image and self.image.repository:
             return self.image.repository.split("/")[-1]
-        # Auto-generate image name when not provided
-        return ConfigLoader._generate_image_name(self.github_url, self.subfolder)
+        
+        # Auto-generate image name based on build method
+        if self.entrypoint:
+            return ConfigLoader._generate_image_name_from_command(self.entrypoint.command)
+        elif self.github:
+            return ConfigLoader._generate_image_name(self.github.github_url, self.github.subfolder)
+        else:
+            return "mcp-server"
     
     @property
     def ecr_repository(self) -> Optional[str]:
@@ -106,6 +130,33 @@ class ConfigLoader:
             aws_region = build_data.get("aws_region", ConfigLoader._get_aws_region())
             push_to_ecr = build_data.get("push_to_ecr", False)
 
+            # Parse entrypoint configuration
+            entrypoint_config = None
+            if "entrypoint" in build_data:
+                entrypoint_data = build_data["entrypoint"]
+                entrypoint_config = EntrypointConfig(
+                    command=entrypoint_data["command"],
+                    args=entrypoint_data.get("args")
+                )
+
+            # Parse GitHub configuration (new format)
+            github_config = None
+            if "github" in build_data:
+                github_data = build_data["github"]
+                github_config = GitHubConfig(
+                    github_url=github_data["github_url"],
+                    subfolder=github_data.get("subfolder"),
+                    branch=github_data.get("branch")
+                )
+
+            # Validate that only one method is specified
+            if entrypoint_config and github_config:
+                raise ValueError("Cannot specify both 'entrypoint' and 'github' in build configuration. Choose one method.")
+
+            # Ensure at least one method is specified
+            if not entrypoint_config and not github_config:
+                raise ValueError("Must specify either 'entrypoint' for direct commands or 'github' for GitHub repositories in build configuration")
+
             # Handle image configuration
             image_config = None
             
@@ -120,23 +171,26 @@ class ConfigLoader:
             
             elif push_to_ecr:
                 # Auto-generate image configuration if pushing to ECR
-                github_url = build_data["github_url"]
-                subfolder = build_data.get("subfolder")
-                image_name = ConfigLoader._generate_image_name(github_url, subfolder)
+                if github_config:
+                    github_url = github_config.github_url
+                    subfolder = github_config.subfolder
+                    branch = github_config.branch
+                    image_name = ConfigLoader._generate_image_name(github_url, subfolder)
+                    tag = ConfigLoader._generate_dynamic_tag(github_url, branch)
+                else:
+                    # For entrypoint commands, use command as image name
+                    image_name = ConfigLoader._generate_image_name_from_command(entrypoint_config.command)
+                    tag = ConfigLoader._generate_static_tag()
+                
                 ecr_repository = ConfigLoader._generate_default_ecr_repository(aws_region)
                 repository = f"{ecr_repository}/{image_name}"
-                
-                # Generate dynamic tag
-                branch = build_data.get("branch")
-                tag = ConfigLoader._generate_dynamic_tag(github_url, branch)
                 
                 image_config = ImageConfig(repository=repository, tag=tag)
 
             build_config = BuildConfig(
-                github_url=build_data["github_url"],
+                entrypoint=entrypoint_config,
+                github=github_config,
                 image=image_config,
-                subfolder=build_data.get("subfolder"),
-                branch=build_data.get("branch"),
                 aws_region=aws_region,
                 dockerfile_path=build_data.get("dockerfile_path"),
                 push_to_ecr=push_to_ecr,
@@ -229,6 +283,24 @@ class ConfigLoader:
         else:
             return f"{git_hash}-{timestamp}"
 
+
+    @staticmethod
+    def _generate_image_name_from_command(command: str) -> str:
+        """Generate image name from command for entrypoint mode."""
+        # Clean up command to make it a valid image name
+        import re
+        # Remove common prefixes and clean up the command
+        clean_command = command.replace("@", "").replace("/", "-").replace(".", "-")
+        # Remove any invalid characters and make lowercase
+        clean_command = re.sub(r'[^a-zA-Z0-9\-_]', '', clean_command).lower()
+        return f"mcp-{clean_command}"
+
+    @staticmethod
+    def _generate_static_tag() -> str:
+        """Generate static tag for entrypoint commands."""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"entrypoint-{timestamp}"
 
     @staticmethod
     def _generate_default_ecr_repository(aws_region: str) -> str:

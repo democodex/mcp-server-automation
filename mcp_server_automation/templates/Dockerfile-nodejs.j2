@@ -15,6 +15,18 @@ RUN npm install -g mcp-proxy
 # Set working directory
 WORKDIR /app
 
+{% if package_info.is_entrypoint_mode %}
+# Entrypoint mode - pre-install packages to avoid runtime downloads
+{% if package_info.entrypoint_command == 'npx' and package_info.entrypoint_args %}
+# Pre-install NPX packages globally for faster startup
+{% for arg in package_info.entrypoint_args %}
+{% if arg.startswith('@') or (arg and not arg.startswith('-')) %}
+RUN npm install -g "{{ arg }}"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% else %}
+# GitHub mode - install from repository
 {% if package_info.project_file == 'package.json' %}
 # Install MCP server directly from GitHub repository
 {% if package_info.subfolder %}
@@ -25,6 +37,7 @@ RUN npm install -g "{{ package_info.github_url }}#{{ package_info.branch }}"
 {% else %}
 # Copy MCP server files (fallback when no package.json)
 COPY mcp-server/ ./mcp-server/
+{% endif %}
 {% endif %}
 
 {% if package_info.environment_variables %}

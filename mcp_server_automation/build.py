@@ -26,7 +26,7 @@ class BuildCommand:
 
     def execute(
         self,
-        github_url: str,
+        github_url: Optional[str],
         subfolder: Optional[str],
         image_name: str,
         ecr_repository: str,
@@ -36,13 +36,25 @@ class BuildCommand:
         branch: Optional[str] = None,
         command_override: Optional[List[str]] = None,
         environment_variables: Optional[dict] = None,
+        entrypoint_command: Optional[str] = None,
+        entrypoint_args: Optional[List[str]] = None,
     ):
         """Execute the build process."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Step 1: Fetch MCP server from GitHub
-            mcp_server_path = self._fetch_mcp_server(
-                github_url, subfolder, temp_dir, branch
-            )
+            # Determine build mode
+            is_entrypoint_mode = entrypoint_command is not None
+            
+            if is_entrypoint_mode:
+                # For entrypoint mode, create a minimal directory structure
+                mcp_server_path = temp_dir
+                print(f"Building entrypoint command: {entrypoint_command} {' '.join(entrypoint_args or [])}")
+            else:
+                # Step 1: Fetch MCP server from GitHub
+                if not github_url:
+                    raise ValueError("github_url is required when not using entrypoint mode")
+                mcp_server_path = self._fetch_mcp_server(
+                    github_url, subfolder, temp_dir, branch
+                )
 
             # Step 2: Generate Dockerfile
             dockerfile_content = self._generate_dockerfile(
@@ -53,14 +65,21 @@ class BuildCommand:
                 github_url,
                 subfolder,
                 branch,
+                entrypoint_command,
+                entrypoint_args,
             )
             dockerfile_full_path = os.path.join(temp_dir, "Dockerfile")
             with open(dockerfile_full_path, "w", encoding='utf-8') as f:
                 f.write(dockerfile_content)
 
             # Step 3: Build Docker image
-            # Generate dynamic tag
-            dynamic_tag = ConfigLoader._generate_dynamic_tag(github_url, branch)
+            # Generate appropriate tag based on mode
+            if is_entrypoint_mode:
+                dynamic_tag = ConfigLoader._generate_static_tag()
+            else:
+                if not github_url:
+                    raise ValueError("github_url is required for GitHub mode")
+                dynamic_tag = ConfigLoader._generate_dynamic_tag(github_url, branch)
 
             if push_to_ecr and ecr_repository:
                 image_tag = f"{ecr_repository}/{image_name}:{dynamic_tag}"
@@ -150,6 +169,8 @@ class BuildCommand:
         github_url: Optional[str] = None,
         subfolder: Optional[str] = None,
         branch: Optional[str] = None,
+        entrypoint_command: Optional[str] = None,
+        entrypoint_args: Optional[List[str]] = None,
     ) -> str:
         """Generate Dockerfile based on template."""
         if custom_dockerfile_path and os.path.exists(custom_dockerfile_path):
@@ -159,7 +180,7 @@ class BuildCommand:
         # Detect package manager and dependencies  
         package_info = self._detect_package_info(
             mcp_server_path, command_override, environment_variables,
-            github_url, subfolder, branch
+            github_url, subfolder, branch, entrypoint_command, entrypoint_args
         )
 
         # Load appropriate Dockerfile template based on language
@@ -182,10 +203,19 @@ class BuildCommand:
         github_url: Optional[str] = None,
         subfolder: Optional[str] = None,
         branch: Optional[str] = None,
+        entrypoint_command: Optional[str] = None,
+        entrypoint_args: Optional[List[str]] = None,
     ) -> dict:
         """Detect package manager, dependency files, and start command."""
-        # First detect the language/runtime
-        language = self._detect_language(mcp_server_path)
+        # Check if this is entrypoint mode
+        is_entrypoint_mode = entrypoint_command is not None
+        
+        if is_entrypoint_mode:
+            # For entrypoint mode, detect language from command
+            language = self._detect_language_from_command(entrypoint_command)
+        else:
+            # First detect the language/runtime from filesystem
+            language = self._detect_language(mcp_server_path)
         
         package_info = {
             "language": language,
@@ -197,10 +227,21 @@ class BuildCommand:
             "github_url": github_url,
             "subfolder": subfolder,
             "branch": branch or "main",
+            "is_entrypoint_mode": is_entrypoint_mode,
+            "entrypoint_command": entrypoint_command,
+            "entrypoint_args": entrypoint_args or [],
         }
 
-        # Priority 1: Use command override if provided
-        if command_override:
+        # Priority 1: Use entrypoint command if provided
+        if is_entrypoint_mode:
+            # Convert entrypoint command and args to start_command format
+            full_command = [entrypoint_command]
+            if entrypoint_args:
+                full_command.extend(entrypoint_args)
+            package_info["start_command"] = full_command
+            print(f"Using entrypoint command: {' '.join(full_command)}")
+        # Priority 2: Use command override if provided  
+        elif command_override:
             package_info["start_command"] = command_override
             print(f"Using command override: {' '.join(command_override)}")
         else:
@@ -379,6 +420,19 @@ class BuildCommand:
 
         return None, has_docker_commands, has_any_commands
 
+    def _detect_language_from_command(self, command: str) -> str:
+        """Detect language from entrypoint command."""
+        if command in ["npx", "npm", "node", "yarn", "pnpm"]:
+            return "nodejs"
+        elif command in ["python", "python3", "pip", "uvx", "uv"]:
+            return "python"
+        elif command.startswith("@"):
+            # NPM package (e.g., @modelcontextprotocol/server-everything)
+            return "nodejs"
+        else:
+            # Default to python for unknown commands
+            return "python"
+
     def _detect_language(self, mcp_server_path: str) -> str:
         """Detect the primary language/runtime of the MCP server."""
         # Check for Node.js indicators
@@ -532,8 +586,15 @@ class BuildCommand:
             repository = image_tag
             tag = "latest"
 
-        push_logs = self.docker_client.images.push(
+        # Push the image (consume the generator to ensure push completes)
+        for log in self.docker_client.images.push(
             repository=repository, tag=tag, stream=True, decode=True
-        )
+        ):
+            # Optional: print push progress
+            if 'status' in log and 'id' in log:
+                print(f"Push progress: {log['id']}: {log['status']}")
+            elif 'error' in log:
+                print(f"Push error: {log['error']}")
+                raise Exception(f"Push failed: {log['error']}")
 
         print(f"Successfully pushed image: {image_tag}")

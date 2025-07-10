@@ -23,6 +23,22 @@ RUN npm install -g mcp-proxy
 # Set working directory
 WORKDIR /app
 
+{% if package_info.is_entrypoint_mode %}
+# Entrypoint mode - pre-install packages to avoid runtime downloads
+{% if package_info.entrypoint_command in ['uvx', 'uv'] %}
+# Pre-install UV/UVX packages for faster startup
+{% for arg in package_info.entrypoint_args %}
+{% if not arg.startswith('-') and '/' not in arg and arg != 'run' %}
+# Install package globally using uv tool
+RUN uv tool install "{{ arg }}"
+{% endif %}
+{% endfor %}
+{% elif package_info.entrypoint_command in ['python', 'python3'] %}
+# For python commands, install common MCP packages
+RUN pip install --no-cache-dir mcp
+{% endif %}
+{% else %}
+# GitHub mode - install from repository
 {% if package_info.manager == 'uv' and package_info.project_file %}
 # Install MCP server directly from GitHub repository using uv
 {% if package_info.subfolder %}
@@ -45,6 +61,7 @@ RUN cd mcp-server && \
 {% elif package_info.manager == 'pip' and package_info.project_file == 'setup.py' %}
 RUN cd mcp-server && \
     pip install --no-cache-dir .
+{% endif %}
 {% endif %}
 {% endif %}
 

@@ -21,40 +21,40 @@ pip install -e .
 
 ### Build and Deploy MCP Servers
 
-#### Using uvx (Recommended)
+#### Using uv run (Recommended)
 ```bash
-# Build MCP server Docker image (local only)
-uvx mcp-server-automation --config config-examples/local-build.yaml
+# Build MCP server using direct command (entrypoint mode)
+uv run python -m mcp_server_automation --config config-examples/entrypoint-example.yaml
 
-# Build and push to ECR  
-uvx mcp-server-automation --config config-examples/build-only.yaml
+# Build MCP server from GitHub repository and push to ECR
+uv run python -m mcp_server_automation --config config-examples/github-example.yaml
 
-# Build, push to ECR, and deploy to ECS
-uvx mcp-server-automation --config test-aws-docs.yaml
+# Complete build and deployment to ECS
+uv run python -m mcp_server_automation --config config-examples/full-deployment.yaml
 
-# Install and run from GitHub repository
+# Install and run from GitHub repository using uvx
 uvx --from git+https://github.com/awslabs/mcp-server-automation mcp-server-automation --config my-config.yaml
 ```
 
 #### Using Python directly
 ```bash
-# Build MCP server Docker image (local only)
-python -m mcp_server_automation --config test-aws-docs.yaml
+# Build MCP server using entrypoint mode
+python -m mcp_server_automation --config config-examples/entrypoint-example.yaml
 
-# Build and push to ECR  
-python -m mcp_server_automation --config config-with-ecr.yaml
+# Build and push to ECR from GitHub repository
+python -m mcp_server_automation --config config-examples/github-example.yaml
 
-# Build, push to ECR, and deploy to ECS
-python -m mcp_server_automation --config test-aws-docs.yaml
+# Complete build and deployment workflow
+python -m mcp_server_automation --config config-examples/full-deployment.yaml
 ```
 
 #### Using local development setup
 ```bash
-# Build MCP server Docker image (local only)
-python -m mcp_server_automation --config test-aws-docs.yaml
+# Install in development mode
+pip install -e .
 
-# Or using the CLI directly
-mcp-automate --config test-aws-docs.yaml
+# Use the CLI directly
+mcp-automate --config config-examples/entrypoint-example.yaml
 ```
 
 ### Testing with MCP Inspector
@@ -77,6 +77,13 @@ npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 
 ### Build Process Flow
 
+#### Entrypoint Mode
+1. **Command Processing**: Uses provided command and arguments directly
+2. **Language Detection**: Detects runtime (Node.js/Python) from command
+3. **Dockerfile Generation**: Creates optimized containers with pre-installed packages
+4. **Image Building**: Builds container ready to execute the specified command
+
+#### GitHub Mode  
 1. **Repository Analysis**: Downloads GitHub repos and detects MCP server configuration from README files
 2. **Command Detection**: Parses JSON blocks in README files to extract MCP server start commands, prioritizing NPX/uvx over Docker commands
 3. **Dockerfile Generation**: Uses Jinja2 templates to create multi-stage Docker builds with mcp-proxy CLI integration
@@ -93,9 +100,15 @@ npx @modelcontextprotocol/inspector http://localhost:8000/mcp
 
 ### Configuration System
 
-Uses YAML files with separate `build` and `deploy` sections:
-- `build`: GitHub URL, branch selection, image naming, ECR settings, dependency detection
-- `deploy`: ECS cluster, VPC/subnet configuration, resource sizing, SSL certificates, MCP config generation
+Uses YAML files with separate `build` and `deploy` sections supporting two build modes:
+
+**Build Section:**
+- **Entrypoint Mode**: Direct command execution (e.g., `npx`, `uvx`) 
+- **GitHub Mode**: Repository-based builds with branch selection
+- **Common Options**: Image naming, ECR settings, environment variables
+
+**Deploy Section:**
+- ECS cluster, VPC/subnet configuration, resource sizing, SSL certificates, MCP config generation
 
 ### Infrastructure Deployment
 
@@ -126,13 +139,37 @@ Use `test-aws-docs.yaml` for validation when making changes to the build or depl
 ## Configuration Options
 
 ### Build Section
-- `github_url`: GitHub repository URL
-- `subfolder`: Path to MCP server within repository (optional)
-- `branch`: Git branch to build from (optional, defaults to 'main')
-- `push_to_ecr`: Whether to push to ECR registry
-- `image_name`: Custom image name (optional, auto-generated if not provided)
-- `ecr_repository`: Custom ECR repository URL (optional)
+
+Choose **ONE** of these two methods:
+
+#### Method 1: Entrypoint Mode (Direct Commands)
+```yaml
+build:
+  entrypoint:
+    command: "npx"  # or "uvx", "uv", etc.
+    args: 
+      - "-y"
+      - "@modelcontextprotocol/server-everything"
+```
+
+#### Method 2: GitHub Mode (Repository-based)
+```yaml
+build:
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"  # optional
+    branch: "main"              # optional, defaults to 'main'
+```
+
+#### Common Build Options
+- `push_to_ecr`: Whether to push to ECR registry (boolean)
 - `aws_region`: AWS region for ECR (optional, defaults to profile region)
+- `dockerfile_path`: Custom Dockerfile path (optional)
+- `command_override`: Override detected start command (optional)
+- `environment_variables`: Container environment variables (optional)
+- `image`: Custom image configuration (optional)
+  - `repository`: Full image repository URL
+  - `tag`: Image tag
 
 ### Deploy Section
 - `enabled`: Whether to deploy to ECS

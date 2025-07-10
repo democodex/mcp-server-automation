@@ -75,18 +75,40 @@ def cli(config):
     # Execute build
     click.echo("Starting build process...")
     build_cmd = BuildCommand()
-    build_cmd.execute(
-        github_url=build_config.github_url,
-        subfolder=build_config.subfolder,
-        image_name=build_config.image_name,
-        ecr_repository=build_config.ecr_repository,
-        aws_region=build_config.aws_region,
-        dockerfile_path=build_config.dockerfile_path,
-        push_to_ecr=build_config.push_to_ecr,
-        branch=build_config.branch,
-        command_override=build_config.command_override,
-        environment_variables=build_config.environment_variables,
-    )
+    
+    # Determine parameters based on build mode
+    if build_config.entrypoint:
+        # Entrypoint mode
+        build_cmd.execute(
+            github_url=None,
+            subfolder=None,
+            image_name=build_config.image_name,
+            ecr_repository=build_config.ecr_repository,
+            aws_region=build_config.aws_region,
+            dockerfile_path=build_config.dockerfile_path,
+            push_to_ecr=build_config.push_to_ecr,
+            branch=None,
+            command_override=build_config.command_override,
+            environment_variables=build_config.environment_variables,
+            entrypoint_command=build_config.entrypoint.command,
+            entrypoint_args=build_config.entrypoint.args,
+        )
+    else:
+        # GitHub mode
+        build_cmd.execute(
+            github_url=build_config.github.github_url,
+            subfolder=build_config.github.subfolder,
+            image_name=build_config.image_name,
+            ecr_repository=build_config.ecr_repository,
+            aws_region=build_config.aws_region,
+            dockerfile_path=build_config.dockerfile_path,
+            push_to_ecr=build_config.push_to_ecr,
+            branch=build_config.github.branch,
+            command_override=build_config.command_override,
+            environment_variables=build_config.environment_variables,
+            entrypoint_command=None,
+            entrypoint_args=None,
+        )
 
     # Execute deployment if enabled
     if deploy_config and deploy_config.enabled:

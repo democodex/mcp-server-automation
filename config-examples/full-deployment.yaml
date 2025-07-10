@@ -1,0 +1,26 @@
+# Complete Build and Deployment
+# Full end-to-end workflow with ECS deployment
+
+build:
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+  
+  push_to_ecr: true
+  
+  environment_variables:
+    LOG_LEVEL: "info"
+
+deploy:
+  enabled: true
+  service_name: "mcp-everything-server"
+  cluster_name: "mcp-cluster"
+  vpc_id: "vpc-12345678"
+  
+  alb_subnet_ids:
+    - "subnet-public-1"
+    - "subnet-public-2"
+  ecs_subnet_ids:
+    - "subnet-private-1"
+  
+  save_config: "./mcp-client-config.md"
