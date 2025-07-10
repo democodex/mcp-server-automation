@@ -41,10 +41,10 @@ The fastest way to build MCP server images is using direct command mode:
 
 ```bash
 # Build MCP server image directly (no config file needed)
-uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
+uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
 
 # Build and push to ECR
-uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation --push-to-ecr -- uvx mcp-server-automation
+uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --push-to-ecr -- uvx mcp-server-automation
 ```
 
 ### Config Files
