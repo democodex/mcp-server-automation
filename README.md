@@ -4,7 +4,7 @@ A powerful CLI tool that automates the process of transforming Model Context Pro
 
 ## 🚀 Features
 
-- **⚡ Direct Command Mode**: Build MCP servers instantly without config files using `--` separator syntax  
+- **⚡ Direct Command Mode**: Build MCP servers instantly without config files using `--` separator syntax
 - **🔄 Automatic Build**: Fetch MCP servers from GitHub, build Docker images, and push to ECR
 - **☁️ One-Click Deploy**: Generate CloudFormation templates and deploy complete ECS infrastructure
 - **🔍 Smart Detection**: Automatically detect MCP server commands from README files
@@ -45,6 +45,9 @@ uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-s
 
 # Build and push to ECR
 uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --push-to-ecr -- uvx mcp-server-automation
+
+# Build for specific architecture
+uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
 ```
 
 ### Config Files
@@ -70,6 +73,9 @@ uv run mcp-server-automation --config your-config.yaml
 
 # Run with direct command mode
 uv run mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
+
+# Run with specific architecture
+uv run mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
 ```
 
 ## ⚙️ Configuration
@@ -90,14 +96,19 @@ mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
 # With ECR push (requires ECR repository to be configured separately)
 mcp-server-automation --push-to-ecr -- python -m my_server
 
+# With specific architecture for cross-platform builds
+mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
+
 # Package name extraction for image naming
 # @modelcontextprotocol/server-everything → mcp-server-everything
 # mcp-server-automation → mcp-mcp-server-automation
 ```
 
 **Features:**
+
 - No config file required
 - Automatic package name extraction for Docker image naming
+- Multi-architecture support with `--arch` parameter (linux/amd64, linux/arm64, etc.)
 - Build-only mode (deployment requires config files)
 - Simple `--push-to-ecr` flag support
 
@@ -110,18 +121,18 @@ build:
   # Method 1: Use command and package manager
   entrypoint:
     command: "npx"
-    args: 
+    args:
       - "-y"
       - "@modelcontextprotocol/server-everything"
 
-  # Method 2: Fetch MCP server from GitHub    
-  # github: 
+  # Method 2: Fetch MCP server from GitHub
+  # github:
     # Required: GitHub repository URL for MCP server
     # github_url: "https://github.com/awslabs/mcp"
-    
+
     # Optional: Subfolder path if MCP server is not in root
     # subfolder: "src/aws-documentation-mcp-server"
-    
+
     # Optional: Git branch to build from (default: main)
     # branch: "develop"
 
@@ -153,6 +164,9 @@ build:
   #   LOG_LEVEL: "debug"
   #   AWS_REGION: "us-east-1"
   #   MCP_SERVER_NAME: "custom-server"
+
+  # Optional: Target architecture for Docker build
+  # architecture: "linux/arm64"  # Options: linux/amd64, linux/arm64
 
 deploy:
   # Required: Enable deployment (only works when push_to_ecr=true)
@@ -270,7 +284,7 @@ The tool supports both **Python** and **Node.js/TypeScript** MCP servers with au
 - Base image: `python:3.12-slim-bookworm`
 - Command extraction from: console scripts in pyproject.toml, setup.py entry points
 
-#### Node.js/TypeScript Projects  
+#### Node.js/TypeScript Projects
 
 - Detected by: `package.json`, `tsconfig.json`, or `.ts/.js` files
 - Package manager: npm (with Node.js 24-bullseye base image)
@@ -297,7 +311,7 @@ The tool automatically detects MCP server startup commands from:
 
 ```yaml
 build:
-  github: 
+  github:
     github_url: "https://github.com/my-org/custom-mcp-server"
   command_override:
     - "python"
@@ -363,6 +377,31 @@ You'll get an error requiring `command_override` to specify the direct startup c
 - Ensure Docker daemon is running
 - Check that the MCP server has proper dependency files (requirements.txt, pyproject.toml, etc.)
 - Verify GitHub repository URL is accessible
+
+### Multi-Architecture Build Issues
+
+When using the `--arch` parameter or `architecture` in config files, you may encounter:
+
+**Error: "No builder available for architecture"**
+
+This means Docker Buildx is not properly configured. To fix:
+
+```bash
+# Create and use a new multi-platform builder
+docker buildx create --name multiarch --use
+
+# Or use an existing builder
+docker buildx use <builder-name>
+
+# List available builders
+docker buildx ls
+```
+
+**Supported architectures:**
+- `linux/amd64` - Standard x86-64 (Intel/AMD)
+- `linux/arm64` - ARM 64-bit (Apple Silicon, AWS Graviton)
+
+For more information, visit: https://docs.docker.com/build/building/multi-platform/
 
 ### ECR Push Issues
 

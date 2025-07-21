@@ -5,43 +5,45 @@ build:
   # Method 1: Use command and package manager
   entrypoint:
     command: "npx"
-    args: 
+    args:
       - "-y"
       - "@modelcontextprotocol/server-everything"
 
-  # Method 2: Fetch MCP server from GitHub    
-  # github: 
+  # Method 2: Fetch MCP server from GitHub
+  # github:
     # Required: GitHub repository URL for MCP server
     # github_url: "https://github.com/awslabs/mcp"
-    
+
     # Optional: Subfolder path if MCP server is not in root
     # subfolder: "src/aws-documentation-mcp-server"
-    
+
     # Optional: Git branch to build from (default: main)
     # branch: "develop"
-  
+
+  architecture: "linux/amd64"  # Options: linux/amd64, linux/arm64
+
   # Required for deployment: Must be true to enable ECR push
   push_to_ecr: true
-  
+
   # Optional: Custom Docker image configuration
   # If not specified, auto-generated when push_to_ecr=true
   # image:
   #   repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-servers/custom-server"
   #   tag: "v1.0"  # Optional, defaults to dynamic git-based tag
-  
+
   # Optional: AWS region (default: from AWS profile, fallback to us-east-1)
   # aws_region: "us-west-2"
-  
+
   # Optional: Custom Dockerfile path
   # dockerfile_path: "./custom.Dockerfile"
-  
+
   # Optional: Override auto-detected MCP server command
   # command_override:
   #   - "python"
   #   - "-m"
   #   - "my_server_module"
   #   - "--verbose"
-  
+
   # Optional: Set environment variables in the container
   # environment_variables:
   #   LOG_LEVEL: "debug"
@@ -51,16 +53,16 @@ build:
 deploy:
   # Required: Enable deployment (only works when push_to_ecr=true)
   enabled: true
-  
+
   # Required: ECS service name
   service_name: "aws-docs-mcp-service"
-  
-  # Required: ECS cluster name  
+
+  # Required: ECS cluster name
   cluster_name: "my-ecs-cluster"
-  
+
   # Required: VPC ID where resources will be created
   vpc_id: "vpc-12345678"
-  
+
   # Required: Subnet configuration
   alb_subnet_ids:    # Public subnets for ALB (minimum 2 in different AZs)
     - "subnet-public-1"
@@ -71,13 +73,13 @@ deploy:
 
   # Optional: Container port (default: 8000)
   port: 8000
-  
+
   # Optional: Task resources
   cpu: 256     # CPU units (default: 256)
   memory: 512  # Memory in MB (default: 512)
-  
+
   # Optional: SSL certificate ARN for HTTPS
   certificate_arn: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
-  
+
   # Optional: Save MCP client configuration to file
   save_config: "./aws-docs-mcp-config.json"

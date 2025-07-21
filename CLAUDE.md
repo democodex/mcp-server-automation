@@ -32,6 +32,9 @@ uv run python -m mcp_server_automation -- npx -y @modelcontextprotocol/server-ev
 # Build and push to ECR using direct command mode
 uv run python -m mcp_server_automation --push-to-ecr -- uvx mcp-server-automation
 
+# Build for specific architecture using direct command mode
+uv run python -m mcp_server_automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
+
 # Build MCP server from GitHub repository and push to ECR
 uv run python -m mcp_server_automation --config config-examples/github-example.yaml
 
@@ -53,6 +56,9 @@ python -m mcp_server_automation -- npx -y @modelcontextprotocol/server-everythin
 # Build and push to ECR using direct command mode
 python -m mcp_server_automation --push-to-ecr -- uvx mcp-server-automation
 
+# Build for specific architecture using direct command mode
+python -m mcp_server_automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
+
 # Build and push to ECR from GitHub repository
 python -m mcp_server_automation --config config-examples/github-example.yaml
 
@@ -73,6 +79,9 @@ mcp-automate -- npx -y @modelcontextprotocol/server-everything
 
 # Use the CLI with push to ECR
 mcp-automate --push-to-ecr -- uvx mcp-server-automation
+
+# Use the CLI with specific architecture
+mcp-automate --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
 ```
 
 ### Testing with MCP Inspector
@@ -147,6 +156,41 @@ Uses YAML files with separate `build` and `deploy` sections supporting two build
 **Deploy Section:**
 - ECS cluster, VPC/subnet configuration, resource sizing, SSL certificates, MCP config generation
 
+### Multi-Architecture Support
+
+The tool supports building Docker images for specific target architectures using the `architecture` parameter in the build configuration. This enables cross-platform builds for different CPU architectures.
+
+#### Supported Architectures
+- `linux/amd64` - Standard x86-64 architecture (Intel/AMD)
+- `linux/arm64` - ARM 64-bit architecture (Apple Silicon, AWS Graviton)
+- `linux/arm/v7` - ARM 32-bit architecture
+
+#### Docker Buildx Setup
+
+Multi-architecture builds require Docker Buildx. If you encounter build errors with the `architecture` parameter, set up Buildx:
+
+```bash
+# Create and use a new multi-platform builder
+docker buildx create --name multiarch --use
+
+# Or use an existing builder
+docker buildx use <builder-name>
+
+# List available builders
+docker buildx ls
+```
+
+#### Configuration Example
+
+```yaml
+build:
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+  architecture: "linux/arm64"  # Build for ARM64 architecture
+  push_to_ecr: true
+```
+
 ### Infrastructure Deployment
 
 - **CloudFormation**: Complete infrastructure as code with VPC, ALB, ECS Fargate service
@@ -157,12 +201,24 @@ Uses YAML files with separate `build` and `deploy` sections supporting two build
 
 ## File Structure
 
-- `build.py`: Core build logic with README parsing and Docker image creation
-- `deploy.py`: ECS deployment with CloudFormation stack management
+### Core Modules
+- `build.py`: Main build orchestration and workflow management
+- `deploy.py`: ECS deployment with CloudFormation stack management  
 - `cli.py`: Click-based CLI interface with build/deploy commands
 - `config.py`: YAML configuration parsing with auto-generation features
 - `mcp_config.py`: Client configuration generation for deployed services
-- `templates/Dockerfile.j2`: Jinja2 template for Docker image generation
+
+### Specialized Components
+- `github_handler.py`: GitHub repository fetching and extraction
+- `package_detector.py`: Language detection and package manager identification
+- `command_parser.py`: Command extraction from README, pyproject.toml, setup.py
+- `docker_handler.py`: Docker image building and ECR operations
+- `dockerfile_generator.py`: Dockerfile generation from templates
+- `utils.py`: Common utility functions and helpers
+
+### Templates and Configuration
+- `templates/Dockerfile-nodejs.j2`: Node.js Docker template
+- `templates/Dockerfile-python.j2`: Python Docker template
 - `templates/ecs-service.yaml`: CloudFormation template for AWS infrastructure
 
 ## Testing
@@ -204,6 +260,7 @@ build:
 - `dockerfile_path`: Custom Dockerfile path (optional)
 - `command_override`: Override detected start command (optional)
 - `environment_variables`: Container environment variables (optional)
+- `architecture`: Target platform/architecture for Docker build (optional, e.g., "linux/amd64", "linux/arm64")
 - `image`: Custom image configuration (optional)
   - `repository`: Full image repository URL
   - `tag`: Image tag

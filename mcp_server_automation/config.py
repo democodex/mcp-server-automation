@@ -46,6 +46,7 @@ class BuildConfig:
     push_to_ecr: bool = False
     command_override: Optional[list[str]] = None
     environment_variables: Optional[Dict[str, str]] = None
+    architecture: Optional[str] = None  # Platform/architecture for Docker build (e.g., "linux/amd64", "linux/arm64")
     
     # Computed properties
     @property
@@ -196,6 +197,7 @@ class ConfigLoader:
                 push_to_ecr=push_to_ecr,
                 command_override=build_data.get("command_override"),
                 environment_variables=build_data.get("environment_variables"),
+                architecture=build_data.get("architecture"),
             )
 
         if "deploy" in config_data:
@@ -298,9 +300,8 @@ class ConfigLoader:
     @staticmethod
     def _generate_static_tag() -> str:
         """Generate static tag for entrypoint commands."""
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        return f"entrypoint-{timestamp}"
+        from .utils import Utils
+        return Utils.generate_static_tag()
 
     @staticmethod
     def _generate_default_ecr_repository(aws_region: str) -> str:

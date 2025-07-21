@@ -25,13 +25,19 @@ from .config import ConfigLoader
     is_flag=True,
     help="Push the built image to ECR",
 )
+@click.option(
+    "--arch",
+    type=str,
+    help="Target architecture for Docker build (e.g., linux/amd64, linux/arm64)",
+)
 @click.pass_context
-def cli(ctx, config, push_to_ecr):
+def cli(ctx, config, push_to_ecr, arch):
     """Build MCP server Docker image and optionally deploy to ECS.
     
     Usage:
       With config file: mcp-server-automation --config config.yaml
       With direct command: mcp-server-automation --push-to-ecr -- npx -y @modelcontextprotocol/server-everything
+      With architecture: mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
     """
     
     # Get extra arguments (everything after --)
@@ -40,6 +46,10 @@ def cli(ctx, config, push_to_ecr):
     # Ensure CLI parameters and config file are mutually exclusive
     if config and extra_args:
         click.echo("Error: Cannot use both --config and direct command (after --). Choose one approach.")
+        return
+    
+    if config and arch:
+        click.echo("Error: Cannot use --arch with --config. Specify architecture in the config file instead.")
         return
     
     if not config and not extra_args:
@@ -72,27 +82,14 @@ def cli(ctx, config, push_to_ecr):
         mcp_config.build.entrypoint.args = args
         
         # Extract package name for image naming
-        package_name = None
-        if args:
-            # Look for package names (typically the last argument or after flags)
-            for arg in reversed(args):
-                if not arg.startswith('-') and ('/' in arg or '@' in arg or not arg.startswith('-')):
-                    # Extract package name from patterns like:
-                    # @modelcontextprotocol/server-everything -> server-everything
-                    # mcp-server-automation -> mcp-server-automation  
-                    if '/' in arg:
-                        package_name = arg.split('/')[-1]
-                    elif '@' in arg and not arg.startswith('@'):
-                        package_name = arg.split('@')[0]
-                    else:
-                        package_name = arg
-                    break
+        from .utils import Utils
+        package_name = Utils.extract_package_name_from_args(args)
         
         # Set required defaults for CLI-only mode
         mcp_config.build.push_to_ecr = push_to_ecr
         if package_name:
             # Clean package name for Docker image naming
-            clean_name = package_name.replace('@', '').replace('/', '-').lower()
+            clean_name = Utils.clean_package_name(package_name)
             mcp_config.build.image_name = f"mcp-{clean_name}"
         else:
             mcp_config.build.image_name = f"mcp-{command}"
@@ -101,6 +98,7 @@ def cli(ctx, config, push_to_ecr):
         mcp_config.build.dockerfile_path = None
         mcp_config.build.command_override = None
         mcp_config.build.environment_variables = None
+        mcp_config.build.architecture = arch  # Add architecture from CLI parameter
 
     build_config = mcp_config.build
     deploy_config = mcp_config.deploy
@@ -165,6 +163,7 @@ def cli(ctx, config, push_to_ecr):
             environment_variables=build_config.environment_variables,
             entrypoint_command=build_config.entrypoint.command,
             entrypoint_args=build_config.entrypoint.args,
+            architecture=build_config.architecture,
         )
     else:
         # GitHub mode - validate that github config exists
@@ -185,6 +184,7 @@ def cli(ctx, config, push_to_ecr):
             environment_variables=build_config.environment_variables,
             entrypoint_command=None,
             entrypoint_args=None,
+            architecture=build_config.architecture,
         )
 
     # Execute deployment if enabled

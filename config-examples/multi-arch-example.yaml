@@ -1,0 +1,36 @@
+# Multi-Architecture Build Example
+# This configuration demonstrates building Docker images for specific architectures
+
+build:
+  # Build from GitHub repository
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+    branch: "main"
+
+  # Target specific architecture
+  architecture: "linux/arm64"  # Options: linux/amd64, linux/arm64
+
+  # Push to ECR
+  push_to_ecr: true
+  aws_region: "us-west-2"
+
+  # Optional environment variables
+  environment_variables:
+    NODE_ENV: "production"
+
+# Optional deployment configuration
+deploy:
+  enabled: false
+  service_name: "mcp-everything-arm64"
+  cluster_name: "mcp-cluster"
+  vpc_id: "vpc-12345678"
+  alb_subnet_ids:
+    - "subnet-12345678"
+    - "subnet-87654321"
+  ecs_subnet_ids:
+    - "subnet-abcdefgh"
+  aws_region: "us-west-2"
+
+  # Save MCP client configuration
+  save_config: "mcp-config.json"
