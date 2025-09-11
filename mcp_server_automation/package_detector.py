@@ -3,6 +3,7 @@
 import os
 import toml
 from typing import Optional, List, Dict, Any
+import os.path
 
 from .command_parser import CommandParser
 
@@ -28,8 +29,11 @@ class PackageDetector:
 
     def detect_language(self, mcp_server_path: str) -> str:
         """Detect the primary language/runtime of the MCP server."""
+        # Validate path first
+        safe_path = self._validate_path(mcp_server_path)
+        
         # Check for Node.js indicators
-        if os.path.exists(os.path.join(mcp_server_path, "package.json")):
+        if os.path.exists(os.path.join(safe_path, "package.json")):
             return "nodejs"
 
         # Check for TypeScript indicators
@@ -179,3 +183,10 @@ class PackageDetector:
             )
 
         return package_info
+    
+    def _validate_path(self, path: str) -> str:
+        """Validate file path to prevent traversal attacks."""
+        abs_path = os.path.abspath(path)
+        if '..' in path or abs_path != os.path.normpath(abs_path):
+            raise ValueError(f"Invalid path detected: {path}")
+        return abs_path

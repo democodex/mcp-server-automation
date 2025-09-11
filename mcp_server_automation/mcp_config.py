@@ -3,6 +3,7 @@
 import json
 import os
 from typing import Dict, Any
+import html
 
 
 class MCPConfigGenerator:
@@ -23,14 +24,17 @@ class MCPConfigGenerator:
     def generate_sse_example_configs(
         service_name: str, alb_url: str, description: str = ""
     ) -> str:
-        base_url = alb_url.rstrip("/")
-
+        # Sanitize inputs to prevent XSS
+        safe_service_name = html.escape(str(service_name))
+        safe_alb_url = html.escape(str(alb_url)).rstrip("/")
+        safe_description = html.escape(str(description)) if description else ""
+        
         config = {
-            "mcpServers": {service_name: {"type": "sse", "url": [f"{base_url}/sse"]}}
+            "mcpServers": {safe_service_name: {"type": "sse", "url": [f"{safe_alb_url}/sse"]}}
         }
 
-        if description:
-            config["mcpServers"][service_name]["description"] = description
+        if safe_description:
+            config["mcpServers"][safe_service_name]["description"] = safe_description
 
         return json.dumps(config, indent=2)
 
@@ -38,16 +42,19 @@ class MCPConfigGenerator:
     def generate_streamable_http_example_configs(
         service_name: str, alb_url: str, description: str = ""
     ) -> str:
-        base_url = alb_url.rstrip("/")
-
+        # Sanitize inputs to prevent XSS
+        safe_service_name = html.escape(str(service_name))
+        safe_alb_url = html.escape(str(alb_url)).rstrip("/")
+        safe_description = html.escape(str(description)) if description else ""
+        
         config = {
             "mcpServers": {
-                service_name: {"transportType": "http", "url": [f"{base_url}/mcp"]}
+                safe_service_name: {"transportType": "http", "url": [f"{safe_alb_url}/mcp"]}
             }
         }
 
-        if description:
-            config["mcpServers"][service_name]["description"] = description
+        if safe_description:
+            config["mcpServers"][safe_service_name]["description"] = safe_description
 
         return json.dumps(config, indent=2)
 

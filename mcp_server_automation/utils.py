@@ -4,6 +4,7 @@ import hashlib
 import re
 from datetime import datetime
 from typing import Optional
+import html
 
 
 class Utils:
@@ -53,6 +54,9 @@ class Utils:
     @staticmethod
     def validate_github_url(github_url: str) -> bool:
         """Validate GitHub URL format."""
+        if not github_url or not isinstance(github_url, str):
+            return False
+            
         if github_url.endswith(".git"):
             github_url = github_url[:-4]
         
@@ -60,19 +64,32 @@ class Utils:
             return False
             
         parts = github_url.replace("https://github.com/", "").split("/")
-        return len(parts) == 2
+        if len(parts) != 2:
+            return False
+            
+        # Validate owner and repo name format
+        owner, repo = parts[0], parts[1]
+        name_pattern = r'^[\w\-\.]+$'
+        return bool(re.match(name_pattern, owner)) and bool(re.match(name_pattern, repo))
 
     @staticmethod
     def extract_repo_info(github_url: str) -> tuple[str, str]:
         """Extract owner and repo name from GitHub URL."""
+        if not Utils.validate_github_url(github_url):
+            raise ValueError(f"Invalid GitHub URL format: {github_url}")
+            
         if github_url.endswith(".git"):
             github_url = github_url[:-4]
             
-        if not github_url.startswith("https://github.com/"):
-            raise ValueError("Invalid GitHub URL")
-            
         parts = github_url.replace("https://github.com/", "").split("/")
-        if len(parts) != 2:
-            raise ValueError("Invalid GitHub URL format")
-            
-        return parts[0], parts[1]
+        # Sanitize owner and repo names
+        owner = re.sub(r'[^\w\-\.]', '', parts[0])
+        repo = re.sub(r'[^\w\-\.]', '', parts[1])
+        return owner, repo
+    
+    @staticmethod
+    def sanitize_output(text: str) -> str:
+        """Sanitize text output to prevent XSS."""
+        if not isinstance(text, str):
+            text = str(text)
+        return html.escape(text)

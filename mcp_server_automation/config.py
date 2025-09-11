@@ -5,6 +5,8 @@ import boto3
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+import os.path
+import re
 
 
 @dataclass
@@ -111,7 +113,9 @@ class ConfigLoader:
     @staticmethod
     def load_config(config_path: str) -> MCPConfig:
         """Load configuration from YAML file."""
-        config_file = Path(config_path)
+        # Validate path to prevent traversal
+        safe_path = ConfigLoader._validate_path(config_path)
+        config_file = Path(safe_path)
         if not config_file.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
@@ -119,6 +123,14 @@ class ConfigLoader:
             config_data = yaml.safe_load(f)
 
         return ConfigLoader._parse_config(config_data)
+    
+    @staticmethod
+    def _validate_path(path: str) -> str:
+        """Validate file path to prevent traversal attacks."""
+        abs_path = os.path.abspath(path)
+        if '..' in path or abs_path != os.path.normpath(abs_path):
+            raise ValueError(f"Invalid path detected: {path}")
+        return abs_path
 
     @staticmethod
     def _parse_config(config_data: Dict[str, Any]) -> MCPConfig:
@@ -144,10 +156,12 @@ class ConfigLoader:
             github_config = None
             if "github" in build_data:
                 github_data = build_data["github"]
+                # Validate GitHub URL
+                github_url = ConfigLoader._validate_github_url(github_data["github_url"])
                 github_config = GitHubConfig(
-                    github_url=github_data["github_url"],
-                    subfolder=github_data.get("subfolder"),
-                    branch=github_data.get("branch")
+                    github_url=github_url,
+                    subfolder=ConfigLoader._sanitize_string(github_data.get("subfolder")),
+                    branch=ConfigLoader._sanitize_string(github_data.get("branch"))
                 )
 
             # Validate that only one method is specified
@@ -193,11 +207,11 @@ class ConfigLoader:
                 github=github_config,
                 image=image_config,
                 aws_region=aws_region,
-                dockerfile_path=build_data.get("dockerfile_path"),
+                dockerfile_path=ConfigLoader._sanitize_string(build_data.get("dockerfile_path")),
                 push_to_ecr=push_to_ecr,
-                command_override=build_data.get("command_override"),
-                environment_variables=build_data.get("environment_variables"),
-                architecture=build_data.get("architecture"),
+                command_override=ConfigLoader._sanitize_command_list(build_data.get("command_override")),
+                environment_variables=ConfigLoader._sanitize_env_vars(build_data.get("environment_variables")),
+                architecture=ConfigLoader._sanitize_string(build_data.get("architecture")),
             )
 
         if "deploy" in config_data:
@@ -220,9 +234,9 @@ class ConfigLoader:
 
             deploy_config = DeployConfig(
                 enabled=enabled,
-                service_name=deploy_data.get("service_name"),
-                cluster_name=deploy_data.get("cluster_name"),
-                vpc_id=deploy_data.get("vpc_id"),
+                service_name=ConfigLoader._sanitize_string(deploy_data.get("service_name")),
+                cluster_name=ConfigLoader._sanitize_string(deploy_data.get("cluster_name")),
+                vpc_id=ConfigLoader._sanitize_string(deploy_data.get("vpc_id")),
                 alb_subnet_ids=alb_subnet_ids,
                 ecs_subnet_ids=ecs_subnet_ids,
                 aws_region=deploy_data.get(
@@ -231,8 +245,8 @@ class ConfigLoader:
                 port=deploy_data.get("port", 8000),
                 cpu=deploy_data.get("cpu", 256),
                 memory=deploy_data.get("memory", 512),
-                certificate_arn=deploy_data.get("certificate_arn"),
-                save_config=deploy_data.get("save_config"),
+                certificate_arn=ConfigLoader._sanitize_string(deploy_data.get("certificate_arn")),
+                save_config=ConfigLoader._sanitize_string(deploy_data.get("save_config")),
             )
 
         return MCPConfig(build=build_config, deploy=deploy_config)
@@ -309,3 +323,50 @@ class ConfigLoader:
         sts_client = boto3.client("sts", region_name=aws_region)
         account_id = sts_client.get_caller_identity()["Account"]
         return f"{account_id}.dkr.ecr.{aws_region}.amazonaws.com/mcp-servers"
+    
+    @staticmethod
+    def _validate_github_url(url: str) -> str:
+        """Validate GitHub URL format."""
+        if not url or not isinstance(url, str):
+            raise ValueError("GitHub URL is required")
+        
+        github_pattern = r'^https://github\.com/[\w\-\.]+/[\w\-\.]+/?$'
+        if not re.match(github_pattern, url.rstrip('.git')):
+            raise ValueError(f"Invalid GitHub URL format: {url}")
+        
+        return url
+    
+    @staticmethod
+    def _sanitize_string(value: Any) -> Optional[str]:
+        """Sanitize string input to prevent injection."""
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            value = str(value)
+        # Remove potentially dangerous characters
+        return re.sub(r'[<>&"\';`$(){}\[\]]', '', value)
+    
+    @staticmethod
+    def _sanitize_command_list(commands: Any) -> Optional[list]:
+        """Sanitize command list."""
+        if commands is None:
+            return None
+        if not isinstance(commands, list):
+            return None
+        return [ConfigLoader._sanitize_string(cmd) for cmd in commands if cmd]
+    
+    @staticmethod
+    def _sanitize_env_vars(env_vars: Any) -> Optional[Dict[str, str]]:
+        """Sanitize environment variables."""
+        if env_vars is None:
+            return None
+        if not isinstance(env_vars, dict):
+            return None
+        
+        sanitized = {}
+        for key, value in env_vars.items():
+            # Validate env var name
+            if re.match(r'^[A-Z_][A-Z0-9_]*$', str(key)):
+                sanitized[str(key)] = ConfigLoader._sanitize_string(value)
+        
+        return sanitized

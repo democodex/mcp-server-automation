@@ -3,6 +3,8 @@
 import os
 import zipfile
 from typing import Optional
+import os.path
+import re
 
 import requests
 
@@ -22,8 +24,8 @@ class GitHubHandler:
         """Fetch MCP server from GitHub repository."""
         print(f"Fetching MCP server from {github_url}")
 
-        # Validate and extract repo info
-        if not Utils.validate_github_url(github_url):
+        # Validate GitHub URL format
+        if not self._validate_github_url(github_url):
             raise ValueError("Invalid GitHub URL")
 
         owner, repo = Utils.extract_repo_info(github_url)
@@ -60,12 +62,34 @@ class GitHubHandler:
 
         repo_dir = os.path.join(temp_dir, extracted_dirs[0])
 
-        # Handle subfolder
+        # Handle subfolder with path validation
         if subfolder:
-            mcp_server_path = os.path.join(repo_dir, subfolder)
+            # Sanitize subfolder path
+            safe_subfolder = self._sanitize_path(subfolder)
+            mcp_server_path = os.path.join(repo_dir, safe_subfolder)
             if not os.path.exists(mcp_server_path):
                 raise RuntimeError(f"Subfolder '{subfolder}' not found in repository")
         else:
             mcp_server_path = repo_dir
 
         return mcp_server_path
+    
+    def _validate_github_url(self, url: str) -> bool:
+        """Validate GitHub URL format."""
+        if not url or not isinstance(url, str):
+            return False
+        
+        github_pattern = r'^https://github\.com/[\w\-\.]+/[\w\-\.]+/?$'
+        return bool(re.match(github_pattern, url.rstrip('.git')))
+    
+    def _sanitize_path(self, path: str) -> str:
+        """Sanitize path to prevent traversal attacks."""
+        if not path:
+            return path
+        
+        # Remove dangerous path components
+        safe_path = path.replace('..', '').replace('//', '/').strip('/')
+        # Remove any remaining dangerous characters
+        safe_path = re.sub(r'[<>&"\';`$(){}\[\]]', '', safe_path)
+        
+        return safe_path

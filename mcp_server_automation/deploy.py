@@ -2,9 +2,10 @@
 
 import os
 from typing import Optional
+import html
 
 import boto3
-from jinja2 import Template
+from jinja2.sandbox import SandboxedEnvironment
 
 
 class DeployCommand:
@@ -77,14 +78,16 @@ class DeployCommand:
         with open(template_path, "r", encoding='utf-8') as f:
             template_content = f.read()
 
-        template = Template(template_content)
+        # Use sandboxed environment and sanitize inputs
+        env = SandboxedEnvironment()
+        template = env.from_string(template_content)
         return template.render(
-            service_name=service_name,
-            cluster_name=cluster_name,
-            image_uri=image_uri,
-            port=port,
-            cpu=cpu,
-            memory=memory,
+            service_name=html.escape(str(service_name)),
+            cluster_name=html.escape(str(cluster_name)),
+            image_uri=html.escape(str(image_uri)),
+            port=int(port),
+            cpu=int(cpu),
+            memory=int(memory),
         )
 
     def _deploy_cloudformation_stack(

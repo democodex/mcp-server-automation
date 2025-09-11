@@ -5,6 +5,7 @@ import os
 import re
 import toml
 from typing import Optional, List, Tuple
+import os.path
 
 
 class CommandParser:
@@ -29,8 +30,11 @@ class CommandParser:
         has_docker_commands = False
         has_any_commands = False
 
+        # Validate path first
+        safe_path = self._validate_path(mcp_server_path)
+        
         for readme_file in readme_files:
-            readme_path = os.path.join(mcp_server_path, readme_file)
+            readme_path = os.path.join(safe_path, readme_file)
             if os.path.exists(readme_path):
                 try:
                     with open(readme_path, "r", encoding="utf-8") as f:
@@ -109,7 +113,8 @@ class CommandParser:
 
     def extract_from_setup_py(self, mcp_server_path: str) -> Optional[List[str]]:
         """Extract start command from setup.py."""
-        setup_py_path = os.path.join(mcp_server_path, "setup.py")
+        safe_path = self._validate_path(mcp_server_path)
+        setup_py_path = os.path.join(safe_path, "setup.py")
         try:
             with open(setup_py_path, "r", encoding='utf-8') as f:
                 content = f.read()
@@ -128,3 +133,10 @@ class CommandParser:
             return None
         except Exception:
             return None
+    
+    def _validate_path(self, path: str) -> str:
+        """Validate file path to prevent traversal attacks."""
+        abs_path = os.path.abspath(path)
+        if '..' in path or abs_path != os.path.normpath(abs_path):
+            raise ValueError(f"Invalid path detected: {path}")
+        return abs_path
