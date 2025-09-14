@@ -43,13 +43,6 @@ pip install 'mcp-server-automation[dev]'
 ```
 **Includes:** pytest, black, flake8, mypy for development
 
-### 6. Legacy Installation (Backward Compatibility)
-**Best for:** Existing users with AWS-only workflows
-```bash
-pip install 'mcp-server-automation[legacy]'
-```
-**Includes:** boto3, botocore (same as [aws])
-**Note:** Maintains original behavior
 
 ## 📊 Installation Size Comparison
 

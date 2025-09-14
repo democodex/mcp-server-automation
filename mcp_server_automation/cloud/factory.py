@@ -41,7 +41,6 @@ class CloudProviderFactory:
                     "🔧 Installation Options:\n"
                     "  • AWS-only: pip install 'mcp-server-automation[aws]'\n"
                     "  • Multi-cloud: pip install 'mcp-server-automation[all]'\n"
-                    "  • Legacy (AWS-only): pip install 'mcp-server-automation[legacy]'\n"
                     "  • Manual: pip install boto3 botocore\n\n"
                     "📋 Required AWS Setup:\n"
                     "  1. Configure AWS CLI: aws configure\n"

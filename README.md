@@ -35,11 +35,6 @@ pip install 'mcp-server-automation[all]'
 pip install mcp-server-automation
 ```
 
-### Legacy Installation
-For backward compatibility with existing workflows:
-```bash
-pip install 'mcp-server-automation[legacy]'  # AWS-only (original behavior)
-```
 
 ## 📋 Prerequisites
 
