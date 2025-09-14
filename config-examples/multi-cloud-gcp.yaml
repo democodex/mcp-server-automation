@@ -1,0 +1,32 @@
+# Multi-Cloud Configuration - Google Cloud Run Example
+# Complete build and deployment to Google Cloud Run
+
+cloud:
+  provider: "gcp"
+  region: "us-central1"
+  project_id: "my-gcp-project"
+
+build:
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+
+  push_to_registry: true
+
+  environment_variables:
+    LOG_LEVEL: "info"
+    MCP_SERVER_NAME: "everything-server"
+
+deploy:
+  enabled: true
+  service_name: "mcp-everything-server"
+
+  gcp:
+    allow_unauthenticated: true  # Public access
+    max_instances: 20
+    cpu_limit: "1000m"          # 1 CPU core
+    memory_limit: "1Gi"         # 1 GB RAM
+    ingress: "all"              # Accept traffic from anywhere
+    # custom_domain: "mcp.example.com"  # Optional custom domain
+
+  save_config: "./mcp-gcp-config.json"

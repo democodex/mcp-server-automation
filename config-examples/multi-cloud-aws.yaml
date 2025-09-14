@@ -1,0 +1,35 @@
+# Multi-Cloud Configuration - AWS ECS Example
+# Complete build and deployment to AWS ECS with new unified format
+
+cloud:
+  provider: "aws"
+  region: "us-east-1"
+  # account_id: "123456789012"  # Optional - auto-detected
+
+build:
+  entrypoint:
+    command: "uvx"
+    args:
+      - "mcp-server-automation"
+
+  push_to_registry: true
+
+  environment_variables:
+    LOG_LEVEL: "info"
+    AWS_REGION: "us-east-1"
+
+deploy:
+  enabled: true
+  service_name: "mcp-automation-server"
+
+  aws:
+    cluster_name: "mcp-cluster"
+    vpc_id: "vpc-12345678"
+    alb_subnet_ids:
+      - "subnet-public-1"
+      - "subnet-public-2"
+    ecs_subnet_ids:
+      - "subnet-private-1"
+    # certificate_arn: "arn:aws:acm:us-east-1:123456789012:certificate/..."  # Optional HTTPS
+
+  save_config: "./mcp-aws-config.json"
