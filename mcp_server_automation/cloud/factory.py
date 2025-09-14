@@ -36,27 +36,49 @@ class CloudProviderFactory:
                 from .aws.provider import AWSProvider
                 return AWSProvider(region=region, account_id=project_id, **kwargs)
             except ImportError as e:
-                raise ImportError(
-                    "AWS provider dependencies not installed. "
-                    "Install with: pip install boto3"
-                ) from e
+                error_msg = (
+                    "❌ AWS provider dependencies not installed.\n\n"
+                    "🔧 Installation Options:\n"
+                    "  • Full installation: pip install 'mcp-server-automation[aws]'\n"
+                    "  • Manual installation: pip install boto3\n\n"
+                    "📋 Required AWS Setup:\n"
+                    "  1. Configure AWS CLI: aws configure\n"
+                    "  2. Verify access: aws sts get-caller-identity\n"
+                    "  3. Set default region: aws configure set region us-east-1"
+                )
+                raise ImportError(error_msg) from e
 
         elif provider_type == 'gcp':
             if not project_id:
-                raise ValueError("project_id is required for GCP provider")
+                raise ValueError(
+                    "project_id is required for GCP provider.\n"
+                    "Specify with: --project-id YOUR_PROJECT_ID or in config file"
+                )
             try:
                 from .gcp.provider import GCPProvider
                 return GCPProvider(region=region, project_id=project_id, **kwargs)
             except ImportError as e:
-                raise ImportError(
-                    "GCP provider dependencies not installed. "
-                    "Install with: pip install google-cloud-run google-cloud-artifact-registry google-auth"
-                ) from e
+                error_msg = (
+                    "❌ GCP provider dependencies not installed.\n\n"
+                    "🔧 Installation Options:\n"
+                    "  • Full installation: pip install 'mcp-server-automation[gcp]'\n"
+                    "  • Manual installation: pip install google-cloud-run google-cloud-artifact-registry google-auth\n\n"
+                    "📋 Required GCP Setup:\n"
+                    "  1. Install gcloud CLI: https://cloud.google.com/sdk/docs/install\n"
+                    "  2. Authenticate: gcloud auth login\n"
+                    "  3. Set project: gcloud config set project YOUR_PROJECT_ID\n"
+                    "  4. Enable APIs: gcloud services enable run.googleapis.com artifactregistry.googleapis.com"
+                )
+                raise ImportError(error_msg) from e
 
         else:
+            supported = list(CloudProviderFactory.get_supported_providers().keys())
             raise ValueError(
-                f"Unsupported provider type: {provider_type}. "
-                f"Supported providers: aws, gcp"
+                f"❌ Unsupported provider type: '{provider_type}'\n\n"
+                f"✅ Supported providers: {', '.join(supported)}\n\n"
+                f"💡 Usage examples:\n"
+                f"  • AWS: --provider aws\n"
+                f"  • GCP: --provider gcp --project-id YOUR_PROJECT"
             )
 
     @staticmethod

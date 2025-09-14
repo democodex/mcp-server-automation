@@ -3,6 +3,8 @@
 import subprocess
 import json
 import time
+import os
+from pathlib import Path
 from typing import Optional
 from ..base import DeploymentOperations, DeploymentResult
 
@@ -45,6 +47,8 @@ class CloudRunDeployer(DeploymentOperations):
             # Add GCP-specific configuration
             if gcp_config.allow_unauthenticated:
                 cmd.extend(["--allow-unauthenticated"])
+            else:
+                cmd.extend(["--no-allow-unauthenticated"])
 
             # Resource limits
             cmd.extend([
@@ -250,3 +254,144 @@ class CloudRunDeployer(DeploymentOperations):
         except Exception as e:
             print(f"❌ Health check error: {str(e)}")
             return False
+
+    def deploy_service_with_yaml(self, config, template_vars: dict) -> DeploymentResult:
+        """Deploy Cloud Run service using YAML template for advanced configurations.
+
+        This method provides more control than the basic deploy_service() method,
+        supporting advanced features like custom domains, VPC connectors, and
+        complex scaling configurations.
+
+        Args:
+            config: MultiCloudDeployConfig with basic service configuration
+            template_vars: Additional template variables for advanced features
+
+        Returns:
+            DeploymentResult with deployment information
+        """
+        from ...cloud_config import MultiCloudDeployConfig
+        import tempfile
+        import jinja2
+
+        # Get template path
+        template_dir = Path(__file__).parent / "templates"
+        template_path = template_dir / "cloud-run-service.yaml"
+
+        if not template_path.exists():
+            # Fall back to basic deployment if template not found
+            print("⚠️ YAML template not found, using basic deployment")
+            return self.deploy_service(config)
+
+        try:
+            # Prepare template variables
+            gcp_config = config.get_cloud_config('gcp')
+
+            template_context = {
+                'service_name': config.service_name,
+                'project_id': self.project_id,
+                'region': self.region,
+                'image_url': getattr(config, 'image_uri', ''),
+                'port': config.port,
+                'cpu_limit': gcp_config.cpu_limit,
+                'memory_limit': gcp_config.memory_limit,
+                'max_instances': gcp_config.max_instances,
+                'min_instances': getattr(gcp_config, 'min_instances', 0),
+                'allow_unauthenticated': gcp_config.allow_unauthenticated,
+                'ingress': gcp_config.ingress,
+                'custom_domain': gcp_config.custom_domain,
+                'environment_variables': getattr(config, 'environment_variables', {}),
+                **template_vars  # Allow override of any template variables
+            }
+
+            # Load and render template
+            with open(template_path, 'r') as f:
+                template = jinja2.Template(f.read())
+
+            rendered_yaml = template.render(**template_context)
+
+            # Write rendered YAML to temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp_file:
+                tmp_file.write(rendered_yaml)
+                tmp_yaml_path = tmp_file.name
+
+            print(f"🗂️ Using YAML template deployment for advanced configuration...")
+
+            try:
+                # Deploy using YAML template
+                cmd = [
+                    "gcloud", "run", "services", "replace", tmp_yaml_path,
+                    "--region", self.region,
+                    "--project", self.project_id,
+                    "--format", "json"
+                ]
+
+                print(f"Running: gcloud run services replace [template] --region {self.region}")
+
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+                # Parse deployment result
+                deployment_info = json.loads(result.stdout) if result.stdout else {}
+                service_url = deployment_info.get('status', {}).get('url', '')
+
+                if not service_url:
+                    service_url = self.get_service_url(config.service_name)
+
+                print(f"✅ Successfully deployed Cloud Run service with YAML template: {config.service_name}")
+                print(f"   Service URL: {service_url}")
+
+                # Set up IAM policy if needed
+                if gcp_config.allow_unauthenticated:
+                    self._set_iam_policy_allow_all(config.service_name)
+
+                # Set up custom domain if specified
+                if gcp_config.custom_domain:
+                    print(f"🌐 Setting up custom domain: {gcp_config.custom_domain}")
+                    self.setup_custom_domain(config.service_name, gcp_config.custom_domain)
+
+                return DeploymentResult(
+                    service_url=service_url,
+                    service_name=config.service_name,
+                    deployment_info={
+                        "region": self.region,
+                        "project_id": self.project_id,
+                        "platform": "Cloud Run (YAML Template)",
+                        "template_used": True,
+                        **deployment_info
+                    }
+                )
+
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(tmp_yaml_path)
+                except OSError:
+                    pass
+
+        except subprocess.CalledProcessError as e:
+            print(f"❌ YAML template deployment failed: {e.stderr}")
+            print("💡 Falling back to basic deployment...")
+            return self.deploy_service(config)
+
+        except Exception as e:
+            print(f"❌ Template processing failed: {str(e)}")
+            print("💡 Falling back to basic deployment...")
+            return self.deploy_service(config)
+
+    def _set_iam_policy_allow_all(self, service_name: str) -> None:
+        """Set IAM policy to allow unauthenticated access."""
+        try:
+            cmd = [
+                "gcloud", "run", "services", "add-iam-policy-binding", service_name,
+                "--member", "allUsers",
+                "--role", "roles/run.invoker",
+                "--region", self.region,
+                "--project", self.project_id,
+                "--quiet"
+            ]
+
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            print("   ✅ Set public access policy (allUsers can invoke)")
+
+        except subprocess.CalledProcessError as e:
+            print(f"   ⚠️ Failed to set public access policy: {e.stderr}")
+            print("      You may need to set this manually in the Google Cloud Console")
