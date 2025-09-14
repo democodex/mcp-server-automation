@@ -1,53 +1,93 @@
 # MCP Server Automation CLI
 
-A powerful CLI tool that automates the process of transforming Model Context Protocol (MCP) stdio servers into Docker images deployed on AWS ECS using [mcp-proxy](https://github.com/punkpeye/mcp-proxy). This tool bridges the gap between local MCP servers and remote HTTP-based deployments.
+A powerful CLI tool that automates the process of transforming Model Context Protocol (MCP) stdio servers into Docker images deployed on AWS ECS and Google Cloud Run using [mcp-proxy](https://github.com/punkpeye/mcp-proxy). This tool bridges the gap between local MCP servers and remote HTTP-based deployments.
 
 ## 🚀 Features
 
+- **☁️ Multi-Cloud Support**: Deploy to both AWS ECS and Google Cloud Run with unified configuration
 - **⚡ Direct Command Mode**: Build MCP servers instantly without config files using `--` separator syntax
-- **🔄 Automatic Build**: Fetch MCP servers from GitHub, build Docker images, and push to ECR
-- **☁️ One-Click Deploy**: Generate CloudFormation templates and deploy complete ECS infrastructure
+- **🔄 Automatic Build**: Fetch MCP servers from GitHub, build Docker images, and push to container registries
+- **🚀 One-Click Deploy**: Generate infrastructure templates and deploy complete container services
+- **📦 Optional Dependencies**: Install only the cloud provider dependencies you need
 - **🔍 Smart Detection**: Automatically detect MCP server commands from README files
 - **🐳 Multi-Language**: Support for Python and Node.js/TypeScript MCP servers with automatic language detection
 - **🏷️ Smart Naming**: Automatic package name extraction for Docker image naming
 - **🔧 Debug Support**: Built-in debug logging for troubleshooting
 - **📝 Config Generation**: Generate MCP client configurations for Claude Desktop, Cline, etc.
 
-## 📋 Prerequisites
+## 📦 Installation
 
-- **Python 3.8+**
-- **Docker** (with daemon running)
-- **AWS CLI** configured with appropriate permissions
-- **AWS ECR repository** (created if using ECR push)
-- **AWS ECS cluster** (created if deploying)
+### Choose Your Cloud Provider
 
-### Install uv
+Install only the dependencies you need:
 
 ```bash
-# On macOS and Linux.
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# AWS-only installation (smaller, faster)
+pip install 'mcp-server-automation[aws]'
+
+# Google Cloud-only installation
+pip install 'mcp-server-automation[gcp]'
+
+# Multi-cloud installation (both AWS and GCP)
+pip install 'mcp-server-automation[all]'
+
+# Base installation (no cloud providers - build only)
+pip install mcp-server-automation
 ```
 
-```powershell
-# On Windows.
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+### Legacy Installation
+For backward compatibility with existing workflows:
+```bash
+pip install 'mcp-server-automation[legacy]'  # AWS-only (original behavior)
 ```
+
+## 📋 Prerequisites
+
+### Common Requirements
+- **Python 3.8+**
+- **Docker** (with daemon running)
+
+### AWS Prerequisites (if using AWS provider)
+- **AWS CLI** configured with appropriate permissions
+- **AWS ECR repository** (auto-created if needed)
+- **AWS ECS cluster** (specified in deployment config)
+
+### GCP Prerequisites (if using GCP provider)
+- **Google Cloud CLI (gcloud)** installed and configured
+- **GCP project** with required APIs enabled:
+  - Cloud Run API
+  - Artifact Registry API
+- **Proper IAM permissions** (Cloud Run Admin, Artifact Registry Admin)
+
 
 ## 📖 Quick Start
 
-### Direct Command Mode (No Config File)
-
-The fastest way to build MCP server images is using direct command mode:
+### AWS Deployment
 
 ```bash
-# Build MCP server image directly (no config file needed)
-uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
+# Build and deploy to AWS ECS
+mcp-server-automation --provider aws --config aws-config.yaml
 
-# Build and push to ECR
-uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --push-to-ecr -- uvx mcp-server-automation
+# Direct command mode (AWS)
+mcp-server-automation --provider aws --push-to-registry -- npx -y @modelcontextprotocol/server-everything
+```
 
-# Build for specific architecture
-uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
+### Google Cloud Deployment
+
+```bash
+# Build and deploy to Google Cloud Run
+mcp-server-automation --provider gcp --project-id my-project --config gcp-config.yaml
+
+# Direct command mode (GCP)
+mcp-server-automation --provider gcp --project-id my-project --push-to-registry -- uvx mcp-server
+```
+
+### Legacy AWS Mode (Backward Compatibility)
+
+```bash
+# Original AWS-only commands (still supported)
+mcp-server-automation --config config.yaml
+mcp-server-automation --push-to-ecr -- npx -y @modelcontextprotocol/server-everything
 ```
 
 ### Config Files

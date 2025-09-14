@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mcp-server-automation"
 version = "1.0.0"
-description = "CLI tool to automate MCP server deployment to AWS ECS and Google Cloud Run"
+description = "CLI tool to automate MCP server deployment to AWS ECS and Google Cloud Run with optional provider-specific dependencies"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
@@ -27,7 +27,6 @@ requires-python = ">=3.8"
 dependencies = [
     "click>=8.0.0",
     "pyyaml>=6.0",
-    "boto3>=1.26.0",
     "docker>=6.0.0",
     "requests>=2.25.0",
     "jinja2>=3.0.0",
@@ -43,6 +42,7 @@ Repository = "https://github.com/aws-samples/sample-mcp-server-automation"
 Issues = "https://github.com/aws-samples/sample-mcp-server-automation/issues"
 
 [project.optional-dependencies]
+# Development dependencies
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",
@@ -50,8 +50,11 @@ dev = [
     "flake8>=4.0",
     "mypy>=0.900",
 ]
+
+# Cloud provider specific dependencies
 aws = [
     "boto3>=1.26.0",
+    "botocore>=1.29.0",
 ]
 gcp = [
     "google-cloud-run>=0.9.0",
@@ -59,12 +62,21 @@ gcp = [
     "google-auth>=2.0.0",
     "google-cloud-logging>=3.0.0",
 ]
+
+# Multi-cloud support (includes all provider dependencies)
 all = [
     "boto3>=1.26.0",
+    "botocore>=1.29.0",
     "google-cloud-run>=0.9.0",
     "google-cloud-artifact-registry>=1.9.0",
     "google-auth>=2.0.0",
     "google-cloud-logging>=3.0.0",
+]
+
+# Legacy compatibility (AWS-only, matches original behavior)
+legacy = [
+    "boto3>=1.26.0",
+    "botocore>=1.29.0",
 ]
 
 [tool.hatch.build.targets.wheel]

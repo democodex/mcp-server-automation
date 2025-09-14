@@ -1,12 +1,19 @@
 """Configuration management for MCP automation."""
 
 import yaml
-import boto3
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 import os.path
 import re
+
+# Optional import for AWS functionality
+try:
+    import boto3
+    HAS_BOTO3 = True
+except ImportError:
+    boto3 = None
+    HAS_BOTO3 = False
 
 
 @dataclass
@@ -263,6 +270,8 @@ class ConfigLoader:
     @staticmethod
     def _get_aws_region() -> str:
         """Get AWS region from profile or default to us-east-1."""
+        if not HAS_BOTO3:
+            return "us-east-1"
         try:
             session = boto3.Session()
             return session.region_name or "us-east-1"
@@ -320,6 +329,11 @@ class ConfigLoader:
     @staticmethod
     def _generate_default_ecr_repository(aws_region: str) -> str:
         """Generate default ECR repository URI using AWS account ID."""
+        if not HAS_BOTO3:
+            raise ImportError(
+                "AWS dependencies not installed. "
+                "Install with: pip install 'mcp-server-automation[aws]'"
+            )
         sts_client = boto3.client("sts", region_name=aws_region)
         account_id = sts_client.get_caller_identity()["Account"]
         return f"{account_id}.dkr.ecr.{aws_region}.amazonaws.com/mcp-servers"

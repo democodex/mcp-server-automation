@@ -10,8 +10,8 @@ import click
 from typing import Optional
 from .cloud.factory import CloudProviderFactory
 from .cloud_config import MultiCloudConfigLoader, MultiCloudMCPConfig
-from .build import BuildCommand  # We'll update this to be cloud-agnostic
-from .config import ConfigLoader  # For backward compatibility
+# from .build import BuildCommand  # TODO: Update this to be cloud-agnostic
+# from .config import ConfigLoader  # For backward compatibility (legacy mode only)
 
 
 @click.command(context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
@@ -127,11 +127,20 @@ def multi_cloud_cli(ctx, config, provider, push_to_registry, push_to_ecr, arch, 
         if not CloudProviderFactory.validate_provider_dependencies(provider):
             supported_providers = CloudProviderFactory.get_supported_providers()
             click.echo(f"❌ {supported_providers[provider]} dependencies not installed.")
+            click.echo("")
+            click.echo("📦 Installation Options:")
 
             if provider == "aws":
-                click.echo("Install with: pip install boto3")
+                click.echo("  • AWS-only: pip install 'mcp-server-automation[aws]'")
+                click.echo("  • Multi-cloud: pip install 'mcp-server-automation[all]'")
+                click.echo("  • Manual: pip install boto3 botocore")
             elif provider == "gcp":
-                click.echo("Install with: pip install google-cloud-run google-cloud-artifact-registry google-auth")
+                click.echo("  • GCP-only: pip install 'mcp-server-automation[gcp]'")
+                click.echo("  • Multi-cloud: pip install 'mcp-server-automation[all]'")
+                click.echo("  • Manual: pip install google-cloud-run google-cloud-artifact-registry google-auth")
+
+            click.echo("")
+            click.echo("📚 See INSTALLATION.md for detailed installation guide.")
             return
 
         # Create cloud provider
@@ -162,11 +171,16 @@ def multi_cloud_cli(ctx, config, provider, push_to_registry, push_to_ecr, arch, 
 
 def _handle_legacy_config(config_path: str, provider: str):
     """Handle legacy configuration files for backward compatibility."""
-    from .cli import cli as legacy_cli
+    # Import legacy CLI only when needed to avoid dependency issues
+    try:
+        from .cli import cli as legacy_cli
+        click.echo("Using legacy AWS-only CLI...")
+        # TODO: Call the original CLI function with the config
+        click.echo(f"Legacy configuration detected but not yet implemented in multi-cloud CLI.")
+    except ImportError as e:
+        click.echo("Legacy CLI unavailable due to missing dependencies.")
+        click.echo(f"Error: {e}")
 
-    click.echo("Using legacy AWS-only CLI...")
-    # This would call the original CLI function
-    # For now, we'll show an informative message
     click.echo(f"Please update your configuration file to use the new multi-cloud format.")
     click.echo(f"See config-examples/multi-cloud-{provider}.yaml for examples.")
 

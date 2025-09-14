@@ -113,8 +113,8 @@ class GCPDeployConfig:
 class MultiCloudDeployConfig:
     """Multi-cloud deployment configuration."""
 
-    enabled: bool = False
     service_name: str
+    enabled: bool = False
     port: int = 8000
 
     # Cloud-specific configurations
