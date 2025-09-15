@@ -1,14 +1,14 @@
 # MCP Server Automation CLI
 
-A powerful CLI tool that automates the process of transforming Model Context Protocol (MCP) stdio servers into Docker images deployed on AWS ECS and Google Cloud Run using [mcp-proxy](https://github.com/punkpeye/mcp-proxy). This tool bridges the gap between local MCP servers and remote HTTP-based deployments.
+A powerful CLI tool that automates the process of transforming Model Context Protocol (MCP) stdio servers into containerized services deployed on **AWS ECS** and **Google Cloud Run** using [mcp-proxy](https://github.com/punkpeye/mcp-proxy). This tool bridges the gap between local MCP servers and remote HTTP-based deployments.
 
 ## 🚀 Features
 
 - **☁️ Multi-Cloud Support**: Deploy to both AWS ECS and Google Cloud Run with unified configuration
+- **📦 Optional Dependencies**: Install only the cloud provider dependencies you need
 - **⚡ Direct Command Mode**: Build MCP servers instantly without config files using `--` separator syntax
 - **🔄 Automatic Build**: Fetch MCP servers from GitHub, build Docker images, and push to container registries
 - **🚀 One-Click Deploy**: Generate infrastructure templates and deploy complete container services
-- **📦 Optional Dependencies**: Install only the cloud provider dependencies you need
 - **🔍 Smart Detection**: Automatically detect MCP server commands from README files
 - **🐳 Multi-Language**: Support for Python and Node.js/TypeScript MCP servers with automatic language detection
 - **🏷️ Smart Naming**: Automatic package name extraction for Docker image naming
@@ -22,19 +22,18 @@ A powerful CLI tool that automates the process of transforming Model Context Pro
 Install only the dependencies you need:
 
 ```bash
-# AWS-only installation (smaller, faster)
+# AWS-only installation (35MB, fastest for AWS users)
 pip install 'mcp-server-automation[aws]'
 
-# Google Cloud-only installation
+# Google Cloud-only installation (40MB, fastest for GCP users)
 pip install 'mcp-server-automation[gcp]'
 
-# Multi-cloud installation (both AWS and GCP)
+# Multi-cloud installation (70MB, both AWS and GCP)
 pip install 'mcp-server-automation[all]'
 
-# Base installation (no cloud providers - build only)
+# Base installation (20MB, build-only, no cloud deployment)
 pip install mcp-server-automation
 ```
-
 
 ## 📋 Prerequisites
 
@@ -54,499 +53,346 @@ pip install mcp-server-automation
   - Artifact Registry API
 - **Proper IAM permissions** (Cloud Run Admin, Artifact Registry Admin)
 
+## 🎮 Usage
 
-## 📖 Quick Start
+### ⚡ Quick Start - Direct Command Mode
 
-### AWS Deployment
-
+#### AWS Examples
 ```bash
-# Build and deploy to AWS ECS
-mcp-server-automation --provider aws --config aws-config.yaml
+# Build MCP server (no deployment)
+mcp-server-automation --provider aws -- npx -y @modelcontextprotocol/server-everything
 
-# Direct command mode (AWS)
+# Build + push to ECR
 mcp-server-automation --provider aws --push-to-registry -- npx -y @modelcontextprotocol/server-everything
+
+# Build for ARM64 architecture
+mcp-server-automation --provider aws --arch linux/arm64 --push-to-registry -- python -m server
 ```
 
-### Google Cloud Deployment
-
+#### Google Cloud Examples
 ```bash
-# Build and deploy to Google Cloud Run
-mcp-server-automation --provider gcp --project-id my-project --config gcp-config.yaml
+# Build MCP server (no deployment)
+mcp-server-automation --provider gcp --project-id my-project -- uvx mcp-server
 
-# Direct command mode (GCP)
-mcp-server-automation --provider gcp --project-id my-project --push-to-registry -- uvx mcp-server
+# Build + push to Artifact Registry
+mcp-server-automation --provider gcp --project-id my-project --push-to-registry -- python -m server
+
+# Specific region deployment
+mcp-server-automation --provider gcp --project-id my-project --region europe-west1 --push-to-registry -- uvx server
 ```
 
-### Legacy AWS Mode (Backward Compatibility)
+### ⚙️ Advanced - Configuration File Mode
+
+#### AWS ECS Full Deployment
+
+**Create `aws-config.yaml`:**
+```yaml
+cloud:
+  provider: "aws"
+  region: "us-east-1"
+
+build:
+  github:
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+  push_to_registry: true
+
+deploy:
+  enabled: true
+  service_name: "mcp-everything"
+  aws:
+    cluster_name: "production-cluster"
+    vpc_id: "vpc-12345678"
+    alb_subnet_ids: ["subnet-pub-1", "subnet-pub-2"]  # Public subnets (min 2)
+    ecs_subnet_ids: ["subnet-priv-1"]                 # Private subnets (min 1)
+    certificate_arn: "arn:aws:acm:us-east-1:123456789012:certificate/abc123"
+  save_config: "./mcp-client-config.json"
+```
+
+**Deploy:**
+```bash
+mcp-server-automation --provider aws --config aws-config.yaml
+```
+
+#### Google Cloud Run Full Deployment
+
+**Create `gcp-config.yaml`:**
+```yaml
+cloud:
+  provider: "gcp"
+  region: "us-central1"
+  project_id: "my-gcp-project"
+
+build:
+  entrypoint:
+    command: "python"
+    args: ["-m", "my_mcp_server"]
+  push_to_registry: true
+  environment_variables:
+    LOG_LEVEL: "info"
+
+deploy:
+  enabled: true
+  service_name: "my-mcp-server"
+  gcp:
+    allow_unauthenticated: true
+    max_instances: 20
+    cpu_limit: "2000m"      # 2 CPU cores
+    memory_limit: "2Gi"     # 2GB RAM
+    custom_domain: "mcp.example.com"
+  save_config: "./mcp-client-config.json"
+```
+
+**Deploy:**
+```bash
+mcp-server-automation --provider gcp --config gcp-config.yaml
+```
+
+### 🔄 Backward Compatibility (AWS-Only Mode)
+
+Existing AWS-only commands continue to work unchanged:
 
 ```bash
-# Original AWS-only commands (still supported)
+# Original commands still supported
 mcp-server-automation --config config.yaml
 mcp-server-automation --push-to-ecr -- npx -y @modelcontextprotocol/server-everything
 ```
 
-### Config Files
+## 🛠️ Configuration Reference
 
-Use yaml-based config file with configuration files for complex deployments:
-
-```bash
-# Install from a Git repository
-uvx --from git+https://github.com/aws-samples/sample-mcp-server-automation mcp-server-automation --config your-config.yaml
-```
-
-### Local Development Setup (MacOS or Linux)
-
-```bash
-# Clone and setup
-git clone https://github.com/aws-samples/sample-mcp-server-automation
-cd mcp-convert-automate
-uv sync
-source .venv/bin/activate
-
-# Run with config file
-uv run mcp-server-automation --config your-config.yaml
-
-# Run with direct command mode
-uv run mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
-
-# Run with specific architecture
-uv run mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
-```
-
-## ⚙️ Configuration
-
-The tool supports two modes:
-
-1. **Direct Command Mode**: No configuration file needed - specify command directly with `--` separator
-2. **Config File Mode**: Use YAML configuration files for complex builds and deployments
-
-### Direct Command Mode
-
-Use the `--` separator to specify commands directly:
-
-```bash
-# Basic usage
-mcp-server-automation -- npx -y @modelcontextprotocol/server-everything
-
-# With ECR push (requires ECR repository to be configured separately)
-mcp-server-automation --push-to-ecr -- python -m my_server
-
-# With specific architecture for cross-platform builds
-mcp-server-automation --arch linux/arm64 -- npx -y @modelcontextprotocol/server-everything
-
-# Package name extraction for image naming
-# @modelcontextprotocol/server-everything → mcp-server-everything
-# mcp-server-automation → mcp-mcp-server-automation
-```
-
-**Features:**
-
-- No config file required
-- Automatic package name extraction for Docker image naming
-- Multi-architecture support with `--arch` parameter (linux/amd64, linux/arm64, etc.)
-- Build-only mode (deployment requires config files)
-- Simple `--push-to-ecr` flag support
-
-### Config File Mode
-
-For complex scenarios, use YAML configuration files with `build` and `deploy` sections:
+### Build Configuration
 
 ```yaml
 build:
-  # Method 1: Use command and package manager
+  # Option 1: GitHub repository
+  github:
+    github_url: "https://github.com/user/repo"
+    subfolder: "path/to/server"    # Optional
+    branch: "main"                 # Optional
+
+  # Option 2: Direct command
   entrypoint:
     command: "npx"
-    args:
-      - "-y"
-      - "@modelcontextprotocol/server-everything"
+    args: ["-y", "@modelcontextprotocol/server-everything"]
 
-  # Method 2: Fetch MCP server from GitHub
-  # github:
-    # Required: GitHub repository URL for MCP server
-    # github_url: "https://github.com/awslabs/mcp"
-
-    # Optional: Subfolder path if MCP server is not in root
-    # subfolder: "src/aws-documentation-mcp-server"
-
-    # Optional: Git branch to build from (default: main)
-    # branch: "develop"
-
-  # Required for deployment: Must be true to enable ECR push and deployment
-  push_to_ecr: true
-
-  # Optional: Custom Docker image configuration
-  # If not specified, auto-generated when push_to_ecr=true
-  # image:
-  #   repository: "123456789012.dkr.ecr.us-east-1.amazonaws.com/mcp-servers/my-mcp-server"
-  #   tag: "v1.0"  # Optional, defaults to dynamic git-based tag
-
-  # Optional: AWS region (default: from AWS profile, fallback to us-east-1)
-  # aws_region: "us-west-2"
-
-  # Optional: Custom Dockerfile path
-  # dockerfile_path: "./custom.Dockerfile"
-
-  # Optional: Override auto-detected MCP server command
-  # Required when README only contains Docker commands or no suitable command is found
-  # command_override:
-  #   - "python"
-  #   - "-m"
-  #   - "my_server_module"
-  #   - "--verbose"
-
-  # Optional: Set environment variables in the container
-  # environment_variables:
-  #   LOG_LEVEL: "debug"
-  #   AWS_REGION: "us-east-1"
-  #   MCP_SERVER_NAME: "custom-server"
-
-  # Optional: Target architecture for Docker build
-  # architecture: "linux/arm64"  # Options: linux/amd64, linux/arm64
-
-deploy:
-  # Required: Enable deployment (only works when push_to_ecr=true)
-  enabled: true
-
-  # Required: ECS service name
-  service_name: "my-mcp-service"
-
-  # Required: ECS cluster name
-  cluster_name: "my-ecs-cluster"
-
-  # Required: VPC ID where resources will be created
-  vpc_id: "vpc-12345678"
-
-  # Required: Subnet configuration
-  alb_subnet_ids:    # Public subnets for ALB (minimum 2 in different AZs)
-    - "subnet-public-1"
-    - "subnet-public-2"
-  ecs_subnet_ids:    # Private subnets for ECS tasks (minimum 1, should resides in AZ of alb_subnet_ids)
-    - "subnet-private-1"
-    - "subnet-private-2"
-
-  # Optional: Container port (default: 8000)
-  port: 8000
-
-  # Optional: Task CPU units (default: 256)
-  cpu: 256
-
-  # Optional: Task memory in MB (default: 512)
-  memory: 512
-
-  # Optional: SSL certificate ARN for HTTPS
-  certificate_arn: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
-
-  # Optional: Save MCP client configuration to file
-  save_config: "./mcp-config.json"
-```
-
-## 🔧 Advanced Usage
-
-### Custom Dockerfile
-
-```yaml
-build:
-  github_url: "https://github.com/my-org/custom-mcp-server"
-  dockerfile_path: "./custom/Dockerfile"
-  push_to_ecr: true
-deploy:
-  enabled: true
-  # ... deployment configuration
-```
-
-### Environment Variables in Container
-
-Set custom environment variables that will be available to the MCP server at runtime:
-
-```yaml
-build:
-  github_url: "https://github.com/my-org/custom-mcp-server"
-  environment_variables:
+  # Common options
+  push_to_registry: true           # Push to ECR/Artifact Registry
+  architecture: "linux/arm64"     # Target architecture
+  environment_variables:          # Container environment
     LOG_LEVEL: "debug"
-    AWS_REGION: "us-east-1"
-    MCP_SERVER_NAME: "custom-server"
-    PYTHONPATH: "/app/mcp-server:/custom/path"
-  push_to_ecr: true
 ```
 
-### System Environment Variables
+### Deployment Configuration
 
-Set environment variables to override default AWS settings:
+#### AWS ECS
+```yaml
+deploy:
+  enabled: true
+  service_name: "my-service"
+  aws:
+    cluster_name: "my-cluster"                    # Required
+    vpc_id: "vpc-12345678"                        # Required
+    alb_subnet_ids: ["subnet-1", "subnet-2"]     # Public subnets (min 2)
+    ecs_subnet_ids: ["subnet-3"]                 # Private subnets (min 1)
+    certificate_arn: "arn:aws:acm:..."           # Optional HTTPS
+  save_config: "./client-config.json"            # Optional
+```
+
+#### Google Cloud Run
+```yaml
+deploy:
+  enabled: true
+  service_name: "my-service"
+  gcp:
+    allow_unauthenticated: true                   # Public access
+    max_instances: 100                            # Max containers
+    cpu_limit: "1000m"                            # 1 CPU core
+    memory_limit: "512Mi"                         # 512MB RAM
+    custom_domain: "api.example.com"              # Optional
+    ingress: "all"                                # Traffic source
+  save_config: "./client-config.json"            # Optional
+```
+
+## 🎯 Real-World Examples
+
+### Deploy AWS Documentation MCP Server
 
 ```bash
-export AWS_REGION=us-west-2
-export ECS_CLUSTER_NAME=my-production-cluster
-```
+# Quick deployment
+mcp-server-automation --provider aws --push-to-registry -- npx -y @modelcontextprotocol/server-everything
 
-## 🏗️ Architecture
+# Production deployment with HTTPS
+cat > production-aws.yaml << EOF
+cloud:
+  provider: "aws"
+  region: "us-east-1"
 
-### Build Process Flow
-
-The tool supports two build modes:
-
-#### Direct Command Mode
-
-1. **Command Parsing**: Parses command and arguments from CLI using `--` separator (e.g., `-- npx -y @modelcontextprotocol/server-everything`)
-2. **Package Name Extraction**: Automatically extracts package names for Docker image naming (e.g., `@modelcontextprotocol/server-everything` → `mcp-server-everything`)
-3. **Language Detection**: Detects runtime (Node.js/Python) from command
-4. **Dockerfile Generation**: Creates optimized containers with pre-installed packages
-5. **Image Building**: Builds container ready to execute the specified command
-
-#### Config File Mode (GitHub/Entrypoint)
-
-1. **Repository Analysis**: Downloads GitHub repos and detects MCP server configuration from README files (GitHub mode)
-2. **Language Detection**: Automatically detects Python or Node.js/TypeScript based on project files (package.json, pyproject.toml, etc.)
-3. **Command Detection**: Parses JSON blocks in README files to extract MCP server start commands from both Claude Desktop (`mcpServers`) and VS Code (`mcp.servers`) configuration formats
-4. **Dockerfile Generation**: Uses language-specific Jinja2 templates (Dockerfile-python.j2, Dockerfile-nodejs.j2) to create optimized builds with mcp-proxy CLI integration
-5. **Image Building**: Creates language-specific containers with proper dependency management and multi-stage builds
-
-### Deployment Architecture
-
-```
-GitHub Repo → Docker Build → ECR → ECS Fargate ← ALB ← Internet
-     ↓              ↓           ↓         ↓        ↓
-MCP Server → mcp-proxy + MCP → Image → Service → HTTP/SSE Endpoints
-```
-
-### Language Support and Detection
-
-The tool supports both **Python** and **Node.js/TypeScript** MCP servers with automatic language detection:
-
-#### Python Projects
-
-- Detected by: `pyproject.toml`, `requirements.txt`, `setup.py`, or `.py` files
-- Package managers: pip, uv, poetry (automatically detected)
-- Base image: `python:3.12-slim-bookworm`
-- Command extraction from: console scripts in pyproject.toml, setup.py entry points
-
-#### Node.js/TypeScript Projects
-
-- Detected by: `package.json`, `tsconfig.json`, or `.ts/.js` files
-- Package manager: npm (with Node.js 24-bullseye base image)
-- Base image: `node:24-bullseye`
-- Command extraction from: README JSON configurations
-
-### Command Detection and Override
-
-The tool automatically detects MCP server startup commands from:
-
-1. **README files** - JSON configuration blocks supporting both formats:
-   - Claude Desktop: `{"mcpServers": {...}}`
-   - VS Code: `{"mcp": {"servers": {...}}}`
-2. **Python projects** - `pyproject.toml` console scripts, `setup.py` entry points
-3. **Node.js projects** - README configurations (package.json scripts not parsed)
-
-**Command Override Required When:**
-
-- README only contains Docker commands (not suitable for containerization)
-- No suitable startup command can be detected
-- You want to specify exact startup parameters
-
-**Example:**
-
-```yaml
 build:
   github:
-    github_url: "https://github.com/my-org/custom-mcp-server"
-  command_override:
-    - "python"
-    - "-m"
-    - "my_server_module"
-    - "--verbose"
-    - "--port"
-    - "3000"
-  push_to_ecr: true
+    github_url: "https://github.com/modelcontextprotocol/servers"
+    subfolder: "src/everything"
+  push_to_registry: true
+
+deploy:
+  enabled: true
+  service_name: "aws-docs-mcp"
+  aws:
+    cluster_name: "production"
+    vpc_id: "vpc-prod123"
+    alb_subnet_ids: ["subnet-pub1", "subnet-pub2"]
+    ecs_subnet_ids: ["subnet-priv1"]
+    certificate_arn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+  save_config: "./aws-docs-mcp-config.json"
+EOF
+
+mcp-server-automation --provider aws --config production-aws.yaml
 ```
 
-**Example README Configurations Supported:**
+### Deploy Custom Python Server to Cloud Run
 
-Claude Desktop format:
+```bash
+cat > python-gcp.yaml << EOF
+cloud:
+  provider: "gcp"
+  region: "us-central1"
+  project_id: "my-ai-project"
+
+build:
+  entrypoint:
+    command: "python"
+    args: ["-m", "my_custom_mcp_server"]
+  push_to_registry: true
+  environment_variables:
+    OPENAI_API_KEY: "sk-..."
+    LOG_LEVEL: "info"
+
+deploy:
+  enabled: true
+  service_name: "custom-mcp-server"
+  gcp:
+    allow_unauthenticated: false    # Private service
+    max_instances: 50
+    cpu_limit: "2000m"              # 2 CPUs for AI workload
+    memory_limit: "4Gi"             # 4GB RAM
+EOF
+
+mcp-server-automation --provider gcp --config python-gcp.yaml
+```
+
+## 🔧 Prerequisites Setup
+
+### AWS Setup
+```bash
+# Install AWS CLI
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip && sudo ./aws/install
+
+# Configure credentials
+aws configure
+
+# Verify setup
+aws sts get-caller-identity
+
+# Create ECS cluster (if deploying)
+aws ecs create-cluster --cluster-name my-cluster
+```
+
+### GCP Setup
+```bash
+# Install gcloud CLI
+curl https://sdk.cloud.google.com | bash
+exec -l $SHELL
+
+# Authenticate and setup
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com
+
+# Verify setup
+gcloud config list
+```
+
+## 📝 Generated Client Configuration
+
+After deployment, the tool generates MCP client configuration:
 
 ```json
 {
   "mcpServers": {
-    "everything": {
+    "my-deployed-server": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-everything"]
-    }
-  }
-}
-```
-
-VS Code format:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "everything": {
-        "command": "python",
-        "args": ["-m", "server"]
+      "args": ["-y", "@mcp/server-fetch"],
+      "env": {
+        "FETCH_MCP_SERVER_URL": "https://your-service-url.com/mcp"
       }
     }
   }
 }
 ```
 
-**Error Example:**
-
-If your MCP server README only shows Docker commands:
-
-```json
-{
-  "mcpServers": {
-    "myserver": {
-      "command": "docker",
-      "args": ["run", "myserver:latest"]
-    }
-  }
-}
-```
-
-You'll get an error requiring `command_override` to specify the direct startup command.
+Copy this configuration to your Claude Desktop config file to use the deployed MCP server.
 
 ## 🐛 Troubleshooting
 
-### Docker Build Issues
-
-- Ensure Docker daemon is running
-- Check that the MCP server has proper dependency files (requirements.txt, pyproject.toml, etc.)
-- Verify GitHub repository URL is accessible
-
-### Multi-Architecture Build Issues
-
-When using the `--arch` parameter or `architecture` in config files, you may encounter:
-
-**Error: "No builder available for architecture"**
-
-This means Docker Buildx is not properly configured. To fix:
-
+### Missing Dependencies
 ```bash
-# Create and use a new multi-platform builder
-docker buildx create --name multiarch --use
-
-# Or use an existing builder
-docker buildx use <builder-name>
-
-# List available builders
-docker buildx ls
+❌ AWS provider dependencies not installed.
+📦 Installation Options:
+  • AWS-only: pip install 'mcp-server-automation[aws]'
+  • Multi-cloud: pip install 'mcp-server-automation[all]'
 ```
 
-**Supported architectures:**
-- `linux/amd64` - Standard x86-64 (Intel/AMD)
-- `linux/arm64` - ARM 64-bit (Apple Silicon, AWS Graviton)
-
-For more information, visit: https://docs.docker.com/build/building/multi-platform/
-
-### ECR Push Issues
-
-- Ensure AWS credentials have ECR permissions
-- Verify ECR repository exists and is accessible
-- Check that Docker is authenticated with ECR
-
-### CloudFormation Deployment Issues
-
-- Ensure AWS credentials have sufficient permissions
-- Check that the ECS cluster exists
-- Verify AWS region is correct
-- Review CloudFormation events in AWS Console for detailed error messages
-
-### MCP Server Connection Issues
-
-- Check container logs in local setup: `docker logs <container-id>`
-- Verify health check endpoint: `curl http://<alb-url>/mcp` (expects HTTP 400)
-- Test direct connection: `curl http://<alb-url>/mcp`
-- Use debug mode for detailed logging
-
-## 🔐 AWS Permissions Required
-
-The AWS credentials used must have the following permissions:
-
-### ECR Permissions
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
-        "ecr:GetAuthorizationToken",
-        "ecr:PutImage",
-        "ecr:InitiateLayerUpload",
-        "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-### ECS and CloudFormation Permissions
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ecs:*",
-        "cloudformation:*",
-        "ec2:*",
-        "elasticloadbalancing:*",
-        "iam:CreateRole",
-        "iam:AttachRolePolicy",
-        "iam:PassRole",
-        "logs:CreateLogGroup",
-        "logs:DescribeLogGroups"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-## 📝 MCP Client Configuration
-
-After deployment, the tool generates configuration for MCP clients:
-
-```json
-{
-  "mcpServers": {
-    "my-mcp-server": {
-      "type": "sse",
-      "url": "http://<ALB address>/sse"
-    }
-  }
-}
-```
-
-### Testing MCP Connection
-
+### Authentication Issues
 ```bash
-# Install mcp-proxy client
-npm install -g mcp-proxy
+# AWS
+aws sts get-caller-identity
+aws configure
 
-# Test connection
-mcp-proxy https://your-alb-url.amazonaws.com/mcp
+# GCP
+gcloud auth list
+gcloud auth login
 ```
 
-## Security
+### Docker Permission Errors
+```bash
+# Add user to docker group (Linux)
+sudo usermod -aG docker $USER
+newgrp docker
+```
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+## 📚 Documentation
 
-## License
+- **[INSTALLATION.md](INSTALLATION.md)**: Detailed installation guide with size comparisons
+- **[MULTI_CLOUD_README.md](MULTI_CLOUD_README.md)**: Complete multi-cloud documentation
+- **Configuration Examples**: See `config-examples/` directory
 
-This library is licensed under the MIT-0 License. See the LICENSE file.
+## 🛡️ Security Best Practices
 
-## 🆘 Support
+- Use private subnets for ECS tasks
+- Configure proper IAM roles and permissions
+- Enable HTTPS with SSL certificates
+- Use VPC endpoints for enhanced security
+- Regularly update container images
 
-- Check the [troubleshooting section](#-troubleshooting) for common issues
-- Review CloudFormation events in AWS Console for deployment issues
-- Use debug mode for detailed logging
-- Open an issue for bugs or feature requests
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Install development dependencies: `pip install 'mcp-server-automation[dev]'`
+4. Make your changes
+5. Run tests: `pytest`
+6. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🔗 Related Projects
+
+- [mcp-proxy](https://github.com/punkpeye/mcp-proxy) - HTTP transport for MCP servers
+- [Model Context Protocol](https://github.com/modelcontextprotocol) - Official MCP specification and servers
+- [Claude Desktop](https://claude.ai) - AI assistant that supports MCP servers
+
+---
+
+**Transform your MCP servers into production-ready cloud services with a single command! 🚀**
