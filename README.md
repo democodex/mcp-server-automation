@@ -391,6 +391,15 @@ newgrp docker
 5. Run tests: `pytest`
 6. Submit a pull request
 
+### Code of Conduct
+
+This project follows both AWS and Google Cloud open source community standards:
+
+- **AWS Projects**: We adopt the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct). Contact opensource-codeofconduct@amazon.com for questions.
+- **Google Cloud Projects**: We follow [Google's Open Source Code of Conduct](https://opensource.google/conduct) promoting inclusive, respectful collaboration. Contact opensource@google.com for concerns.
+
+**Core Principles**: Create inclusive environments, treat all contributors respectfully, encourage constructive collaboration, and address disrespectful behavior promptly.
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
