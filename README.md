@@ -371,7 +371,8 @@ newgrp docker
 ## 📚 Documentation
 
 - **[INSTALLATION.md](INSTALLATION.md)**: Detailed installation guide with size comparisons
-- **[MULTI_CLOUD_README.md](MULTI_CLOUD_README.md)**: Complete multi-cloud documentation
+- **Multi-cloud configuration**: Complete examples and usage patterns (read above)
+- **Code of conduct**: Community standards and contact information (read below)
 - **Configuration Examples**: See `config-examples/` directory
 
 ## 🛡️ Security Best Practices
