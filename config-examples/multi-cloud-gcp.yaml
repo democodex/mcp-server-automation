@@ -3,24 +3,24 @@
 
 cloud:
   provider: "gcp"
-  region: "us-central1"
-  project_id: "my-gcp-project"
+  region: "REGION" # e.g., "us-central1"
+  project_id: "PROJECT_ID" # e.g., "my-gcp-project"
 
 build:
   github:
-    github_url: "https://github.com/modelcontextprotocol/servers"
-    subfolder: "src/everything"
+    github_url: "GITHUB_REPO_URL"
+    subfolder: "SUBFOLDER_PATH" # e.g., "services/everything-server"
 
   push_to_registry: true
 
   environment_variables:
     LOG_LEVEL: "info"
-    MCP_SERVER_NAME: "everything-server"
+    MCP_SERVER_NAME: "MCP_SERVER_NAME" # e.g., "MyMCPServer"
 
 deploy:
   enabled: true
-  service_name: "mcp-everything-server"
-
+  service_name: "MCP_SERVER_NAME" # e.g., "my-mcp-server"
+  save_config: "./mcp-gcp-config.json"
   gcp:
     allow_unauthenticated: true  # Public access
     max_instances: 20
@@ -28,5 +28,3 @@ deploy:
     memory_limit: "1Gi"         # 1 GB RAM
     ingress: "all"              # Accept traffic from anywhere
     # custom_domain: "mcp.example.com"  # Optional custom domain
-
-  save_config: "./mcp-gcp-config.json"
