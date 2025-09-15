@@ -1,12 +1,13 @@
-# Complete Build and Deployment
-# Full end-to-end workflow with ECS deployment
+# AWS Legacy - Complete Build and Deployment
+# Full end-to-end workflow with AWS ECS deployment
+# NOTE: This uses legacy format. For new projects, use multi-cloud-aws.yaml
 
 build:
   github:
     github_url: "https://github.com/modelcontextprotocol/servers"
     subfolder: "src/everything"
   
-  push_to_ecr: true
+  push_to_ecr: true  # AWS ECR
   
   environment_variables:
     LOG_LEVEL: "info"
