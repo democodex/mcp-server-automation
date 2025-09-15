@@ -131,12 +131,12 @@ def multi_cloud_cli(ctx, config, provider, push_to_registry, push_to_ecr, arch, 
             click.echo("📦 Installation Options:")
 
             if provider == "aws":
-                click.echo("  • AWS-only: pip install 'mcp-server-automation[aws]'")
-                click.echo("  • Multi-cloud: pip install 'mcp-server-automation[all]'")
+                click.echo("  • From source: pip install -e \".[aws]\"")
+                click.echo("  • Multi-cloud: pip install -e \".[all]\"")
                 click.echo("  • Manual: pip install boto3 botocore")
             elif provider == "gcp":
-                click.echo("  • GCP-only: pip install 'mcp-server-automation[gcp]'")
-                click.echo("  • Multi-cloud: pip install 'mcp-server-automation[all]'")
+                click.echo("  • From source: pip install -e \".[gcp]\"")
+                click.echo("  • Multi-cloud: pip install -e \".[all]\"")
                 click.echo("  • Manual: pip install google-cloud-run google-cloud-artifact-registry google-auth")
 
             click.echo("")

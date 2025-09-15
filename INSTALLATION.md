@@ -1,47 +1,72 @@
 # Installation Guide - Optional Dependencies
 
+> **Note:** This package will be published to PyPI soon. For now, install from source.
+
 The MCP Server Automation CLI supports **optional dependency packages** to reduce installation size and complexity. Install only the cloud providers you need!
 
 ## 🎯 Installation Options
 
-### 1. AWS-Only Installation
+### Current Installation (From Source)
+
+#### 1. AWS-Only Installation
 **Best for:** Users deploying only to AWS ECS
 ```bash
-pip install 'mcp-server-automation[aws]'
+git clone https://github.com/your-org/mcp-server-automation.git
+cd mcp-server-automation
+pip install -e ".[aws]"
 ```
 **Includes:** boto3, botocore
 **Size:** ~50MB smaller than full installation
 
-### 2. Google Cloud-Only Installation
+#### 2. Google Cloud-Only Installation
 **Best for:** Users deploying only to Google Cloud Run
 ```bash
-pip install 'mcp-server-automation[gcp]'
+git clone https://github.com/your-org/mcp-server-automation.git
+cd mcp-server-automation
+pip install -e ".[gcp]"
 ```
 **Includes:** google-cloud-run, google-cloud-artifact-registry, google-auth, google-cloud-logging
 **Size:** ~60MB smaller than full installation
 
-### 3. Multi-Cloud Installation
+#### 3. Multi-Cloud Installation
 **Best for:** Users deploying to both AWS and GCP
 ```bash
-pip install 'mcp-server-automation[all]'
+git clone https://github.com/your-org/mcp-server-automation.git
+cd mcp-server-automation
+pip install -e ".[all]"
 ```
 **Includes:** All AWS and GCP dependencies
 **Size:** Full installation with all features
 
-### 4. Build-Only Installation
+#### 4. Build-Only Installation
 **Best for:** Users who only want to build Docker images (no cloud deployment)
 ```bash
-pip install mcp-server-automation
+git clone https://github.com/your-org/mcp-server-automation.git
+cd mcp-server-automation
+pip install -e .
 ```
 **Includes:** Only core dependencies (Docker, Jinja2, YAML)
 **Size:** Minimal installation ~20MB
 
-### 5. Development Installation
+#### 5. Development Installation
 **Best for:** Contributors and developers
 ```bash
-pip install 'mcp-server-automation[dev]'
+git clone https://github.com/your-org/mcp-server-automation.git
+cd mcp-server-automation
+pip install -e ".[dev]"
 ```
 **Includes:** pytest, black, flake8, mypy for development
+
+### Future Installation (After PyPI Publication)
+
+```bash
+# These commands will work once published to PyPI
+pip install 'mcp-server-automation[aws]'    # AWS-only
+pip install 'mcp-server-automation[gcp]'    # GCP-only
+pip install 'mcp-server-automation[all]'    # Multi-cloud
+pip install mcp-server-automation           # Base installation
+pip install 'mcp-server-automation[dev]'    # Development
+```
 
 
 ## 📊 Installation Size Comparison
@@ -64,7 +89,7 @@ mcp-server-automation --provider aws --config aws-config.yaml
 # ❌ Fails - GCP dependencies missing
 mcp-server-automation --provider gcp --project-id my-project
 # Error: GCP provider dependencies not installed
-# Install with: pip install 'mcp-server-automation[gcp]'
+# Install with: pip install -e ".[gcp]"
 ```
 
 ### After GCP-Only Installation
@@ -75,7 +100,7 @@ mcp-server-automation --provider gcp --project-id my-project --config gcp-config
 # ❌ Fails - AWS dependencies missing
 mcp-server-automation --provider aws --config aws-config.yaml
 # Error: AWS provider dependencies not installed
-# Install with: pip install 'mcp-server-automation[aws]'
+# Install with: pip install -e ".[aws]"
 ```
 
 ### After Multi-Cloud Installation
@@ -92,18 +117,18 @@ If you see dependency errors, you can:
 
 1. **Add missing provider:**
    ```bash
-   pip install 'mcp-server-automation[gcp]'  # Add GCP support
+   pip install -e ".[gcp]"  # Add GCP support
    ```
 
 2. **Upgrade to multi-cloud:**
    ```bash
-   pip install 'mcp-server-automation[all]'  # Get everything
+   pip install -e ".[all]"  # Get everything
    ```
 
 3. **Reinstall with correct dependencies:**
    ```bash
    pip uninstall mcp-server-automation
-   pip install 'mcp-server-automation[aws]'
+   pip install -e ".[aws]"
    ```
 
 ### Docker-Only Usage

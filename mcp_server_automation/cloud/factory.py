@@ -39,8 +39,8 @@ class CloudProviderFactory:
                 error_msg = (
                     "❌ AWS provider dependencies not installed.\n\n"
                     "🔧 Installation Options:\n"
-                    "  • AWS-only: pip install 'mcp-server-automation[aws]'\n"
-                    "  • Multi-cloud: pip install 'mcp-server-automation[all]'\n"
+                    "  • From source: pip install -e \".[aws]\"\n"
+                    "  • Multi-cloud: pip install -e \".[all]\"\n"
                     "  • Manual: pip install boto3 botocore\n\n"
                     "📋 Required AWS Setup:\n"
                     "  1. Configure AWS CLI: aws configure\n"
@@ -62,8 +62,8 @@ class CloudProviderFactory:
                 error_msg = (
                     "❌ GCP provider dependencies not installed.\n\n"
                     "🔧 Installation Options:\n"
-                    "  • GCP-only: pip install 'mcp-server-automation[gcp]'\n"
-                    "  • Multi-cloud: pip install 'mcp-server-automation[all]'\n"
+                    "  • From source: pip install -e \".[gcp]\"\n"
+                    "  • Multi-cloud: pip install -e \".[all]\"\n"
                     "  • Manual: pip install google-cloud-run google-cloud-artifact-registry google-auth\n\n"
                     "📋 Required GCP Setup:\n"
                     "  1. Install gcloud CLI: https://cloud.google.com/sdk/docs/install\n"

@@ -17,22 +17,30 @@ A powerful CLI tool that automates the process of transforming Model Context Pro
 
 ## 📦 Installation
 
-### Choose Your Cloud Provider
+> **Note:** This package will be published to PyPI soon. For now, install from source.
 
-Install only the dependencies you need:
+### Current Installation (From Source)
 
 ```bash
-# AWS-only installation (35MB, fastest for AWS users)
-pip install 'mcp-server-automation[aws]'
+# Clone the repository
+git clone https://github.com/your-org/mcp-server-automation.git
+cd mcp-server-automation
 
-# Google Cloud-only installation (40MB, fastest for GCP users)
-pip install 'mcp-server-automation[gcp]'
+# Install with your preferred cloud provider dependencies
+pip install -e ".[aws]"      # AWS-only (35MB, fastest for AWS users)
+pip install -e ".[gcp]"      # Google Cloud-only (40MB, fastest for GCP users)
+pip install -e ".[all]"      # Multi-cloud (70MB, both AWS and GCP)
+pip install -e .             # Base installation (20MB, build-only, no cloud deployment)
+```
 
-# Multi-cloud installation (70MB, both AWS and GCP)
-pip install 'mcp-server-automation[all]'
+### Future Installation (After PyPI Publication)
 
-# Base installation (20MB, build-only, no cloud deployment)
-pip install mcp-server-automation
+```bash
+# These commands will work once published to PyPI
+pip install 'mcp-server-automation[aws]'    # AWS-only
+pip install 'mcp-server-automation[gcp]'    # GCP-only
+pip install 'mcp-server-automation[all]'    # Multi-cloud
+pip install mcp-server-automation           # Base installation
 ```
 
 ## 📋 Prerequisites
@@ -378,7 +386,7 @@ newgrp docker
 
 1. Fork the repository
 2. Create a feature branch
-3. Install development dependencies: `pip install 'mcp-server-automation[dev]'`
+3. Install development dependencies: `pip install -e ".[dev]"`
 4. Make your changes
 5. Run tests: `pytest`
 6. Submit a pull request
